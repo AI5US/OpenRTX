@@ -61,6 +61,25 @@ jobs:
       - name: Add coverage to Github step summary
         run: |
           cat build/coverage/coverage.md >> $GITHUB_STEP_SUMMARY
+  # D-STAR support is disabled by default: build and test it on its own
+  unit-test-dstar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: install-deps
+        run: |
+          sudo apt update
+          sudo apt install -y git pkg-config build-essential meson libsdl2-dev libreadline-dev libusb-1.0-0 libusb-1.0-0-dev libcodec2-dev codec2 catch2
+      - name: setup meson
+        run: meson setup build -Ddstar=true
+      - name: Build
+        run: meson compile -C build openrtx_linux
+      - name: Run unit tests
+        run: meson test -C build --print-errorlogs
   build-zephyr:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
@@ -200,6 +219,9 @@ jobs:
             meson compile -C build_cm7 openrtx_cs7000p_wrap &&
             meson compile -C build_cm7 openrtx_cs7000p_dfu &&
             meson compile -C build_cm4 openrtx_rt4d_bin &&
+            meson setup --cross-file cross_cm4.txt -Ddstar=true build_cm4_dstar &&
+            meson compile -C build_cm4_dstar openrtx_mod17_bin &&
+            meson compile -C build_cm4_dstar openrtx_md3x0_wrap &&
             chmod -R a+rX build_linux build_cm4 build_cm7
       # The build runs as root in the container, so the binaries land in the
       # bind-mounted workspace owned by root. Copying rather than moving (as
