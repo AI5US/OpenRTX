@@ -1342,6 +1342,14 @@ if get_option('dstar')
   dstar_vocoder_test = executable('dstar_vocoder_test',
                                   sources : unit_test_src + ['tests/unit/dstar_vocoder.cpp'],
                                   kwargs  : unit_test_opts)
+  dstar_protocol_test = executable('dstar_protocol_test',
+                                   sources : unit_test_src + ['tests/unit/dstar_protocol.cpp'],
+                                   kwargs  : unit_test_opts)
+  dstar_modem_test = executable('dstar_modem_test',
+                                sources : unit_test_src + ['tests/unit/dstar_modem.cpp'],
+                                kwargs  : unit_test_opts)
 
-  test('D-STAR Vocoder Test', dstar_vocoder_test)
+  test('D-STAR Vocoder Test',  dstar_vocoder_test)
+  test('D-STAR Protocol Test', dstar_protocol_test)
+  test('D-STAR Modem Test',    dstar_modem_test)
 endif
