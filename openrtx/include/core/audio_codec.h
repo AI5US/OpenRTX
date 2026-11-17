@@ -30,6 +30,16 @@ void codec_init();
 void codec_terminate();
 
 /**
+ * Speech codecs available for encoding and decoding.
+ */
+enum codecType {
+    CODEC_CODEC2_3200 = 0, ///< Codec2 3200 bit/s, 8 bytes per 20 ms frame
+#ifdef CONFIG_DSTAR
+    CODEC_DSTAR_AMBE = 1, ///< D-STAR AMBE, 9 bytes per 20 ms frame
+#endif
+};
+
+/**
  * Start encoding of audio data from a given audio source.
  * Only an encoding or decoding operation at a time is possible: in case there
  * is already an operation in progress, this function returns false.
@@ -49,6 +59,26 @@ bool codec_startEncode(const pathId path);
  * @return true on success, false on failure.
  */
 bool codec_startDecode(const pathId path);
+
+/**
+ * Start encoding of audio data from a given audio source with a given codec.
+ * codec_startEncode() uses Codec2 3200.
+ *
+ * @param path: audio path for encoding source.
+ * @param type: codec to use.
+ * @return true on success, false on failure.
+ */
+bool codec_startEncodeType(const pathId path, const enum codecType type);
+
+/**
+ * Start decoding of audio data with a given codec, sending the uncompressed
+ * samples to a given audio destination. codec_startDecode() uses Codec2 3200.
+ *
+ * @param path: audio path for decoded audio.
+ * @param type: codec to use.
+ * @return true on success, false on failure.
+ */
+bool codec_startDecodeType(const pathId path, const enum codecType type);
 
 /**
  * Stop an ongoing encoding or decoding operation.
@@ -75,7 +105,7 @@ bool codec_queueEmpty(const pathId path);
 
 /**
  * Get a compressed audio frame from the internal queue. Each frame is composed
- * of 8 bytes.
+ * of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE.
  *
  * @param frame: pointer to a destination buffer where to put the encoded frame.
  * @param blocking: if true the execution flow will be blocked whenever the
@@ -87,7 +117,7 @@ int codec_popFrame(uint8_t *frame, const bool blocking);
 
 /**
  * Push a a compressed audio frame to the internal queue for decoding.
- * Each frame is composed of 8 bytes.
+ * Each frame is composed of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE.
  *
  * @param frame: frame to be pushed to the queue.
  * @param blocking: if true the execution flow will be blocked whenever the
