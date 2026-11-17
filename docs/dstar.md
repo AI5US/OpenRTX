@@ -6,9 +6,32 @@
 
 # D-STAR in OpenRTX: feasibility study
 
-Status: investigation only, no code yet. Facts marked **[unverified]** come
-from secondary sources or from implementations of the spec, not from the
-JARL text itself, and must be checked against it before any code is written.
+Status: implemented behind the `dstar` meson option and the `C62_DSTAR`
+CMake option, not yet tested on air. Facts marked **[unverified]** come from
+secondary sources or from implementations of the spec, not from the JARL
+text itself.
+
+## Implementation
+
+| Part | Files |
+|---|---|
+| Vocoder (mbelib-neo) | `core/dstar_vocoder.h`, codec thread (`audio_codec.c`, `CODEC_DSTAR_AMBE`) |
+| Constants, bit order | `protocols/DSTAR/Constants.hpp` |
+| Header, CRC, header FEC | `protocols/DSTAR/Header.*`, `Crc.hpp`, `HeaderCoder.*` |
+| Slow data (message, header repeat) | `protocols/DSTAR/SlowData.*` |
+| GMSK modem | `protocols/DSTAR/Modulator.*`, `Demodulator.*` |
+| Operating mode | `rtx/OpMode_DSTAR.*`, `OPMODE_DSTAR` |
+| Radio drivers | D-STAR uses the M17 baseband configuration |
+| UI | mode `DV` (macro 5), call display, `#` edits UR, Settings > D-STAR (UR, RPT1, RPT2, message) |
+
+The protocol and modem code are ported from G4KLX's MMDVM and MMDVMHost
+(GPL-2.0-or-later). Settings are stored in `settings_t` only when D-STAR is
+enabled, so default builds keep their settings layout. RPT1 `DIRECT` means
+simplex; anything else sets the header repeater flag.
+
+Still to verify on air: GMSK deviation and phase on each radio, header and
+voice interoperability with D-STAR radios and MMDVM hotspots, CPU load of
+the vocoder on Cortex-M4, stack and heap use.
 
 ## Summary
 
