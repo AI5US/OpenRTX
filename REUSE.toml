@@ -39,6 +39,8 @@ path = [
     "subprojects/radio_tool.wrap",
     "subprojects/codec2.wrap",
     "subprojects/XPowersLib.wrap",
+    "subprojects/mbelib-neo.wrap",
+    "subprojects/pffft.wrap",
     "scripts/uf2families.json",
     "scripts/generate_symbols.py",
 ]

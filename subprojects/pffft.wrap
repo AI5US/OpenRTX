@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/arancormonk/pffft
+revision = b7ed3cdb8655426a77aa26f8c0f5154205427f45
+depth = 1
+patch_directory = pffft
+
+[provide]
+dependency_names = pffft

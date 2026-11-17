@@ -68,6 +68,8 @@ subprojects/codec2
 subprojects/tinyusb
 subprojects/XPowersLib
 subprojects/catch2
+subprojects/mbelib-neo
+subprojects/pffft
 
 # ignore log files
 *.log
