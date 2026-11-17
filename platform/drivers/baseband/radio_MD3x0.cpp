@@ -166,6 +166,8 @@ void radio_setOpmode(const enum opmode mode)
             //C5000_dmrMode();
             break;
 
+        case OPMODE_DSTAR:
+
         case OPMODE_M17:
             gpio_clearPin(DMR_SW);      // Disconnect analog paths for DMR
             gpio_setPin(FM_SW);         // Enable analog RX stage after superhet
@@ -263,6 +265,8 @@ void radio_enableTx()
             C5000.startAnalogTx(source, cfg | FmConfig::PREEMPH_EN);
         }
             break;
+
+        case OPMODE_DSTAR:
 
         case OPMODE_M17:
             C5000.startAnalogTx(TxAudioSource::LINE_IN, FmConfig::BW_25kHz);
