@@ -1331,3 +1331,12 @@ test('DSP Oversampling Test', dsp_oversampling_test)
 test('GFX Text Test',        gfx_text_test)
 test('Audio Codec Test',     audio_codec_test)
 test('M17 Baseband Replay Test', m17_replay_test, timeout : 120) # ~40 s in CI with coverage
+
+# D-STAR tests, only when D-STAR support is enabled
+if get_option('dstar')
+  dstar_vocoder_test = executable('dstar_vocoder_test',
+                                  sources : unit_test_src + ['tests/unit/dstar_vocoder.cpp'],
+                                  kwargs  : unit_test_opts)
+
+  test('D-STAR Vocoder Test', dstar_vocoder_test)
+endif
