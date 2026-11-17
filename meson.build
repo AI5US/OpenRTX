@@ -144,7 +144,8 @@ if get_option('dstar')
                'openrtx/src/protocols/DSTAR/HeaderCoder.cpp',
                'openrtx/src/protocols/DSTAR/SlowData.cpp',
                'openrtx/src/protocols/DSTAR/Modulator.cpp',
-               'openrtx/src/protocols/DSTAR/Demodulator.cpp']
+               'openrtx/src/protocols/DSTAR/Demodulator.cpp',
+               'openrtx/src/rtx/OpMode_DSTAR.cpp']
   dstar_dep = [subproject('mbelib-fx', default_options : ['imbe=false'])
                 .get_variable('mbefx_dep')]
 endif
