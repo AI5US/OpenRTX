@@ -106,6 +106,8 @@ void radio_setOpmode(const enum opmode mode)
 //             C6000.dmrMode();
             break;
 
+        case OPMODE_DSTAR:
+
         case OPMODE_M17:
             at1846s.setOpMode(AT1846S_OpMode::DMR); // AT1846S in DMR mode, disables RX filter
             at1846s.setBandwidth(AT1846S_BW::_25);  // Set bandwidth to 25kHz for proper deviation
@@ -202,6 +204,8 @@ void radio_enableTx()
             C6000.startAnalogTx(TxAudioSource::MIC, cfg | FmConfig::PREEMPH_EN);
         }
             break;
+
+        case OPMODE_DSTAR:
 
         case OPMODE_M17:
             C6000.startAnalogTx(TxAudioSource::LINE_IN, FmConfig::BW_25kHz);

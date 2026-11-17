@@ -44,8 +44,27 @@ static constexpr uint8_t M17_RX_AUDIO_GAIN1 = 1; // -6 dB
 static constexpr uint8_t M17_RX_AUDIO_GAIN2 = 0x3f;
 static constexpr uint8_t M17_MIC_GAIN = 0;
 
-static struct C62Calib calData;  // TX calibration
+static struct C62Calib calData; // TX power calibration
 static struct C62CalPoint txCal; // TX calibration at the TX frequency
+
+/**
+ * Digital modes using the flat M17 baseband path, receiving and
+ * transmitting: M17 and D-STAR. Their deviation is set by the modulator
+ * level, with the M17 settings of the BK4819.
+ */
+static bool basebandMode(enum opmode mode)
+{
+    return (mode == OPMODE_M17) || (mode == OPMODE_DSTAR);
+}
+
+/* The BK4819 GPIOs to control the C62 LNA and PA */
+enum {
+    GPIO_VHF_RX_LNA = 0,
+    GPIO_UHF_RX_LNA,
+    GPIO_VHF_TX_PA,
+    GPIO_UHF_TX_PA,
+    GPIO_ALC_TX_LED
+};
 
 /**
  * Set the TX power control (APC) voltage through the PWM on pin A03. The TX
@@ -108,7 +127,7 @@ void radio_setOpmode(const enum opmode mode)
     // The core calls this before disabling the old mode: unkey first
     radio_disableRtx();
 
-    if (mode == OPMODE_M17) {
+    if (basebandMode(mode)) {
         bk4819_setAudioMode(&c62_bk4819, BK4819_AUDIO_BYPASS);
         bk4819_setTxDeviation(&c62_bk4819, true, M17_TX_DEVIATION);
         // 12.5 kHz bandwidth mode; the M17 filters then replace its filters
@@ -160,7 +179,7 @@ void radio_enableRx()
 
     bk4819_setFrequency(&c62_bk4819, config->rxFrequency);
 
-    if (radioMode == OPMODE_M17) {
+    if (basebandMode(radioMode)) {
         // The DSP takes the baseband from the AF output for the whole
         // reception. M17 sets its bandwidth on the mode change and has no
         // CTCSS.
@@ -192,8 +211,8 @@ void radio_enableTx()
 
     bk4819_setFrequency(&c62_bk4819, config->txFrequency);
 
-    if ((radioMode != OPMODE_M17) && config->txToneEn) {
-        bk4819_enableTxCtcss(&c62_bk4819, config->txTone, CTCSS_TX_GAIN);
+    if (!basebandMode(radioMode) && config->txToneEn) {
+        bk4819_enable_tx_ctcss(&c62_bk4819, config->txTone);
     }
 
     if (config->txFrequency < 174000000) {
