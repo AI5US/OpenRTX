@@ -139,7 +139,12 @@ dstar_src = []
 dstar_dep = []
 if get_option('dstar')
   dstar_def = {'CONFIG_DSTAR': ''}
-  dstar_src = ['openrtx/src/core/dstar_vocoder.c']
+  dstar_src = ['openrtx/src/core/dstar_vocoder.c',
+               'openrtx/src/protocols/DSTAR/Header.cpp',
+               'openrtx/src/protocols/DSTAR/HeaderCoder.cpp',
+               'openrtx/src/protocols/DSTAR/SlowData.cpp',
+               'openrtx/src/protocols/DSTAR/Modulator.cpp',
+               'openrtx/src/protocols/DSTAR/Demodulator.cpp']
   dstar_dep = [subproject('mbelib-neo').get_variable('mbelib_dep')]
 endif
 
