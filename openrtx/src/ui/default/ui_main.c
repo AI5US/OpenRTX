@@ -15,6 +15,24 @@
 #include "core/utils.h"
 #include "ui/utils.h"
 
+/**
+ * Check whether the current mode shows a call instead of the frequency.
+ */
+static bool _ui_callShown(void)
+{
+#ifdef CONFIG_M17
+    rtxStatus_t status = rtx_getCurrentStatus();
+    if ((status.opMode == OPMODE_M17) && status.lsfOk)
+        return true;
+#endif
+#ifdef CONFIG_DSTAR
+    rtxStatus_t dstarStatus = rtx_getCurrentStatus();
+    if ((dstarStatus.opMode == OPMODE_DSTAR) && dstarStatus.dstarHeaderOk)
+        return true;
+#endif
+    return false;
+}
+
 void _ui_drawMainBackground()
 {
     // Print top bar line of hline_h pixel height
@@ -87,6 +105,75 @@ const char* _ui_getToneEnabledString(bool tone_tx_enable, bool tone_rx_enable,
     uint8_t index = (tone_rx_enable << 1) | (tone_tx_enable);
     return strings[use_abbreviation][index];
 }
+
+#ifdef CONFIG_DSTAR
+/**
+ * D-STAR mode information: the received header and text message, or the
+ * companion callsign used for transmission when no call is received.
+ */
+static void _ui_drawDStarInfo(ui_state_t *ui_state)
+{
+    rtxStatus_t rtxStatus = rtx_getCurrentStatus();
+
+    if (rtxStatus.dstarHeaderOk == false) {
+        // Companion callsign, being edited with the # key or set
+        const char *ur = last_state.settings.dstar_ur;
+        if (ui_state->edit_mode)
+            ur = ui_state->new_callsign;
+
+        gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  color_white, "DV %s", ur);
+        ui_state->m17_meta_text_scroll_position = 0;
+        return;
+    }
+
+    // Own callsign, with suffix if present
+    gfx_drawSymbol(layout.line1_pos, layout.line1_symbol_size, TEXT_ALIGN_LEFT,
+                   color_white, SYMBOL_CALL_MADE);
+    if (rtxStatus.DSTAR_suffix[0] != '\0')
+        gfx_print(layout.line1_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  color_white, "%s/%s", rtxStatus.DSTAR_my,
+                  rtxStatus.DSTAR_suffix);
+    else
+        gfx_print(layout.line1_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  color_white, "%s", rtxStatus.DSTAR_my);
+
+    // Companion callsign
+    gfx_drawSymbol(layout.line2_pos, layout.line2_symbol_size, TEXT_ALIGN_LEFT,
+                   color_white, SYMBOL_CALL_RECEIVED);
+    gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "%s", rtxStatus.DSTAR_ur);
+
+    // Departure repeater, when not simplex
+    if ((rtxStatus.DSTAR_rpt1[0] != '\0')
+        && (strcmp(rtxStatus.DSTAR_rpt1, "DIRECT") != 0)) {
+        gfx_drawSymbol(layout.line4_pos, layout.line3_symbol_size,
+                       TEXT_ALIGN_LEFT, color_white, SYMBOL_ACCESS_POINT);
+        gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  color_white, "%s", rtxStatus.DSTAR_rpt1);
+    }
+
+    // Text message, scrolling as the M17 meta text
+    if (rtxStatus.DSTAR_message[0] == '\0') {
+        ui_state->m17_meta_text_scroll_position = 0;
+        return;
+    }
+
+    char msg[14];
+    scrollTextPeek(rtxStatus.DSTAR_message, msg, sizeof(msg),
+                   ui_state->m17_meta_text_scroll_position);
+
+    long long now = getTick();
+    if (now - ui_state->m17_meta_text_last_scroll_tick >= 100) {
+        scrollTextAdvance(rtxStatus.DSTAR_message, sizeof(msg),
+                          &ui_state->m17_meta_text_scroll_position);
+        ui_state->m17_meta_text_last_scroll_tick = now;
+    }
+
+    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "%s", msg);
+}
+#endif
 
 void _ui_drawModeInfo(ui_state_t* ui_state)
 {
@@ -213,6 +300,13 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
             }
             break;
         }
+        #endif
+
+
+        #ifdef CONFIG_DSTAR
+        case OPMODE_DSTAR:
+            _ui_drawDStarInfo(ui_state);
+            break;
         #endif
     }
 }
@@ -350,6 +444,17 @@ void _ui_drawMainBottom()
                                 true);
             break;
         #endif
+        #ifdef CONFIG_DSTAR
+        case OPMODE_DSTAR:
+            gfx_drawSmeterLevel(meter_pos,
+                                meter_width,
+                                meter_height,
+                                rssi,
+                                mic_level,
+                                volume,
+                                true);
+            break;
+        #endif
     }
 }
 
@@ -359,11 +464,8 @@ void _ui_drawMainVFO(ui_state_t* ui_state)
     _ui_drawMainTop(ui_state);
     _ui_drawModeInfo(ui_state);
 
-    #ifdef CONFIG_M17
-    // Show VFO frequency if the OpMode is not M17 or there is no valid LSF data
-    rtxStatus_t status = rtx_getCurrentStatus();
-    if((status.opMode != OPMODE_M17) || (status.lsfOk == false))
-    #endif
+    // Show the VFO frequency unless a received call takes its place
+    if(_ui_callShown() == false)
         _ui_drawFrequency();
 
     _ui_drawMainBottom();
@@ -383,11 +485,8 @@ void _ui_drawMainMEM(ui_state_t* ui_state)
     _ui_drawMainTop(ui_state);
     _ui_drawModeInfo(ui_state);
 
-    #ifdef CONFIG_M17
-    // Show channel data if the OpMode is not M17 or there is no valid LSF data
-    rtxStatus_t status = rtx_getCurrentStatus();
-    if((status.opMode != OPMODE_M17) || (status.lsfOk == false))
-    #endif
+    // Show the channel data unless a received call takes its place
+    if(_ui_callShown() == false)
     {
         _ui_drawBankChannel();
         _ui_drawFrequency();
