@@ -105,6 +105,32 @@ Options:
 Receive-only AMBE decoding (option 3 for RX only) is the same legal
 question as option 3 and is not a shortcut.
 
+### Chosen: software AMBE with mbelib-neo, behind a build option
+
+D-STAR support is built only with `meson setup -Ddstar=true`, which defines
+`CONFIG_DSTAR` on the targets with a baseband path (MD-3x0, MD-UV3x0,
+DM-1701, Module17, CS7000, CS7000-PLUS, linux). Default builds are unchanged.
+
+The vocoder is [mbelib-neo](https://github.com/arancormonk/mbelib-neo)
+(GPL-2.0-or-later, with ISC and PFFFT notices retained), pulled as a meson
+subproject pinned to a commit, together with its PFFFT dependency. Only the
+AMBE/IMBE code is built, not its TETRA decoder (unresolved licensing). It
+provides both directions for D-STAR: a 3600x2400 encoder (D-STAR bit
+layout cross-checked by its authors against MMDVM and DVSI test vectors,
+on-air interoperability not yet verified) and the decoder, plus the
+packing to and from the 9 bytes of a DV frame. `core/dstar_vocoder.h` wraps
+it with separate encoder and decoder objects.
+
+mbelib-neo's own patent review (`legal/patents.md`) lists records it has not
+cleared, among them US 8,595,002 (related half-rate family) which its
+encoder cites. Keeping the feature off by default leaves that decision to
+whoever builds it.
+
+To be measured on hardware: CPU load of encoding and decoding on a
+Cortex-M4 (mbelib-neo is float based, scalar FFT), stack use in the codec
+thread (16 KB) and heap use (each parameter set is about 2.6 KB, plus the
+encoder's analysis state and FFT plans).
+
 ## Fit with the OpenRTX code base
 
 ### Hardware
