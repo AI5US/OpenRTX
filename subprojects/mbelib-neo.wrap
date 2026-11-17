@@ -1,0 +1,8 @@
+[wrap-git]
+url = https://github.com/arancormonk/mbelib-neo
+revision = a7803f892256bad822a3cae79e18bc33d6bacc36
+depth = 1
+patch_directory = mbelib-neo
+
+[provide]
+dependency_names = mbelib-neo
