@@ -51,6 +51,12 @@ typedef struct
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage
     bool    gpsSetTime;           // Use GPS to ajust RTC time
     char    M17_meta_text[53];    // M17 Meta Text to send
+#ifdef CONFIG_DSTAR
+    char    dstar_ur[9];          // D-STAR companion (UR) callsign
+    char    dstar_rpt1[9];        // D-STAR departure repeater (RPT1)
+    char    dstar_rpt2[9];        // D-STAR destination repeater (RPT2)
+    char    dstar_message[21];    // D-STAR slow data text message
+#endif
 }
 __attribute__((packed)) settings_t;
 
@@ -79,6 +85,12 @@ static const settings_t default_settings =
     false,                        // Display battery icon
     false,                        // Update RTC with GPS
     "OpenRTX",                    // Default M17 meta text
+#ifdef CONFIG_DSTAR
+    "CQCQCQ",                     // D-STAR UR, call everyone
+    "DIRECT",                     // D-STAR RPT1, simplex
+    "DIRECT",                     // D-STAR RPT2, simplex
+    "OpenRTX",                    // D-STAR text message
+#endif
 };
 
 #endif /* SETTINGS_H */
