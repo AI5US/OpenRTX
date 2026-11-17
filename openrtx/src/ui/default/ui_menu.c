@@ -1045,6 +1045,77 @@ void _ui_drawSettingsM17(ui_state_t* ui_state)
 }
 #endif
 
+#ifdef CONFIG_DSTAR
+int _ui_getDStarEntryName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if (index >= settings_dstar_num)
+        return -1;
+
+    sniprintf(buf, max_len, "%s", settings_dstar_items[index]);
+    return 0;
+}
+
+int _ui_getDStarValueName(char *buf, uint8_t max_len, uint8_t index)
+{
+    const char *value;
+
+    switch (index) {
+        case DSTAR_UR:
+            value = last_state.settings.dstar_ur;
+            break;
+        case DSTAR_RPT1:
+            value = last_state.settings.dstar_rpt1;
+            break;
+        case DSTAR_RPT2:
+            value = last_state.settings.dstar_rpt2;
+            break;
+        case DSTAR_MESSAGE:
+            value = last_state.settings.dstar_message;
+            break;
+        default:
+            return -1;
+    }
+
+    // Limit the display to 8 characters, an asterisk marks longer values
+    if (strlen(value) > 8)
+        sniprintf(buf, max_len, "%.7s*", value);
+    else
+        sniprintf(buf, max_len, "%s", value);
+
+    return 0;
+}
+
+void _ui_drawSettingsDStar(ui_state_t *ui_state)
+{
+    gfx_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER, color_white,
+              "D-STAR Settings");
+
+    if (ui_state->edit_meta_text == false) {
+        _ui_drawMenuListValue(ui_state, ui_state->menu_selected,
+                              _ui_getDStarEntryName, _ui_getDStarValueName);
+        return;
+    }
+
+    // Value being typed, in a box under the entry name
+    uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+    uint16_t rect_height =
+        (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h)) / 2;
+    point_t rect_origin = { (CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                            (CONFIG_SCREEN_HEIGHT - rect_height) / 2 };
+
+    if (ui_state->menu_selected < settings_dstar_num)
+        gfx_printLine(1, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                      layout.horizontal_pad, layout.menu_font,
+                      TEXT_ALIGN_LEFT, color_white,
+                      settings_dstar_items[ui_state->menu_selected]);
+    gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+    gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font, TEXT_ALIGN_CENTER,
+                  color_white, ui_state->new_meta_text);
+}
+#endif
+
 void _ui_drawSettingsFM(ui_state_t* ui_state)
 {
     gfx_clearScreen();
@@ -1290,6 +1361,11 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
 #ifdef CONFIG_M17
         case OPMODE_M17:
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          M17");
+            break;
+#endif
+#ifdef CONFIG_DSTAR
+        case OPMODE_DSTAR:
+            gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          DV");
             break;
 #endif
     }
