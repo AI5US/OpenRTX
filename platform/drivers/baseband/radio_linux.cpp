@@ -28,6 +28,7 @@ void radio_setOpmode(const enum opmode mode)
     if(mode == OPMODE_DMR)  mStr = "DMR";
     if(mode == OPMODE_M17)  mStr = "M17";
     if(mode == OPMODE_DSTAR) mStr = "D-STAR";
+    if(mode == OPMODE_YSF)  mStr = "YSF";
 
     printf("radio_linux: setting opmode to %s\n", mStr.c_str());
 }

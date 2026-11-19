@@ -109,6 +109,9 @@ void radio_setOpmode(const enum opmode mode)
 #endif
             // Software DMR uses the M17 baseband path
 
+#ifdef CONFIG_YSF
+        case OPMODE_YSF:
+#endif
         case OPMODE_DSTAR:
 
         case OPMODE_M17:
@@ -210,6 +213,9 @@ void radio_enableTx()
 
 #ifdef CONFIG_DMR
         case OPMODE_DMR:
+#endif
+#ifdef CONFIG_YSF
+        case OPMODE_YSF:
 #endif
         case OPMODE_DSTAR:
 
