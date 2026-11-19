@@ -44,6 +44,8 @@ mbelib_args = ['-DMBE_STATIC=1', '-DPFFFT_STATIC_DEFINE', '-w']
 # thread-local storage may not be available, use plain static variables.
 if meson.is_cross_build()
   mbelib_args += ['-include', meson.current_source_dir() / 'mbe_single_thread.h']
+  # Single precision maths: Cortex-M FPUs have no double precision
+  mbelib_args += ['-DMBE_FLOAT_MATH', '-fsingle-precision-constant']
 endif
 
 mbelib_inc = include_directories('include')
