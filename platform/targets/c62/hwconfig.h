@@ -42,6 +42,12 @@ extern "C" {
 /* The PA can be switched off between the bursts of a TDMA transmission */
 #define CONFIG_RADIO_PA_KEYING
 
+/*
+ * Delay from the baseband output stream to the antenna, the DSP buffering:
+ * measured off air on DMR bursts with the PA keyed around them
+ */
+#define CONFIG_BASEBAND_TX_DELAY_US 26500
+
 /* Software gain of the M17 microphone input, set for C62_ADC_MIC_GAIN_A/D */
 #define CONFIG_MIC_GAIN 13
 
