@@ -44,12 +44,13 @@ static struct C62Calib calData; // TX power calibration
 
 /**
  * Digital modes using the flat M17 baseband path, receiving and
- * transmitting: M17 and D-STAR. Their deviation is set by the modulator
+ * transmitting: M17, D-STAR and DMR. Their deviation is set by the modulator
  * level, with the M17 settings of the BK4819.
  */
 static bool basebandMode(enum opmode mode)
 {
-    return (mode == OPMODE_M17) || (mode == OPMODE_DSTAR);
+    return (mode == OPMODE_M17) || (mode == OPMODE_DSTAR)
+           || (mode == OPMODE_DMR);
 }
 
 /* The BK4819 GPIOs to control the C62 LNA and PA */
