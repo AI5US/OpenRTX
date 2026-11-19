@@ -150,6 +150,10 @@ private:
     /// 1 ms: the switching follows the system tick
     static constexpr uint32_t PA_MARGIN_SYMBOLS = 5;
 
+    /// Consecutive PTT readings, one per burst, needed to end a
+    /// transmission: switching the PA can glitch the PTT input
+    static constexpr uint8_t PTT_RELEASE_READS = 2;
+
     /// Age of the last downlink burst still good to time a transmission
     static constexpr long long DOWNLINK_TIMEOUT_MS = 1000;
 
@@ -173,6 +177,7 @@ private:
     bool rxClockValid;      ///< rxClock estimated since sampling started
     bool repeater;          ///< Repeater mode
     uint8_t wakeups;        ///< Wake-ups sent for the current PTT press
+    uint8_t pttReleases;    ///< Consecutive PTT readings found released
     bool keying;            ///< Switching the PA around the bursts
     bool paNextOn;          ///< Next PA switching is on
     bool startRx;           ///< Start reception

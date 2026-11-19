@@ -43,6 +43,7 @@ OpMode_DMR::OpMode_DMR()
     , rxClockValid(false)
     , repeater(false)
     , wakeups(0)
+    , pttReleases(0)
     , keying(false)
     , paNextOn(false)
     , startRx(false)
@@ -464,6 +465,7 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
 
     if (startTx) {
         startTx = false;
+        pttReleases = 0;
 
         Lc lc = {};
         lc.flco = status->dmrPrivateCall ? FLCO_USER_USER : FLCO_GROUP;
@@ -519,7 +521,12 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
     voiceEnc.voice(frames, burst);
     sendBurst(burst);
 
-    if (platform_getPttStatus() == false) {
+    if (platform_getPttStatus())
+        pttReleases = 0;
+    else
+        pttReleases++;
+
+    if (pttReleases >= PTT_RELEASE_READS) {
         voiceEnc.terminator(burst);
         sendBurst(burst);
         modulator.stop();
