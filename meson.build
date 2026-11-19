@@ -160,7 +160,8 @@ if get_option('dmr')
              'openrtx/src/protocols/DMR/Lc.cpp',
              'openrtx/src/protocols/DMR/Voice.cpp',
              'openrtx/src/protocols/DMR/Modulator.cpp',
-             'openrtx/src/protocols/DMR/Demodulator.cpp']
+             'openrtx/src/protocols/DMR/Demodulator.cpp',
+             'openrtx/src/rtx/OpMode_DMR.cpp']
 endif
 
 # mbelib-neo, the vocoder library shared by D-STAR and DMR

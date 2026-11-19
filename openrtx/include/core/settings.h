@@ -57,6 +57,13 @@ typedef struct
     char    dstar_rpt2[9];        // D-STAR destination repeater (RPT2)
     char    dstar_message[21];    // D-STAR slow data text message
 #endif
+#ifdef CONFIG_DMR
+    uint32_t dmr_id;              // DMR radio ID
+    uint32_t dmr_dest;            // DMR destination: talkgroup or radio ID
+    uint8_t  dmr_cc        : 4,   // DMR colour code
+             dmr_private   : 1,   // DMR private call to dmr_dest
+             _dmr_reserved : 3;
+#endif
 }
 __attribute__((packed)) settings_t;
 
@@ -90,6 +97,13 @@ static const settings_t default_settings =
     "DIRECT",                     // D-STAR RPT1, simplex
     "DIRECT",                     // D-STAR RPT2, simplex
     "OpenRTX",                    // D-STAR text message
+#endif
+#ifdef CONFIG_DMR
+    0,                            // DMR ID, not set
+    9,                            // DMR destination, talkgroup 9
+    1,                            // DMR colour code
+    0,                            // DMR group call
+    0,                            // not used
 #endif
 };
 
