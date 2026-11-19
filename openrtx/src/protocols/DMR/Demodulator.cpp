@@ -6,6 +6,7 @@
  */
 
 #include <cstring>
+#include "protocols/DMR/Cach.hpp"
 #include "protocols/DMR/Demodulator.hpp"
 
 using namespace DMR;
@@ -74,12 +75,14 @@ static uint8_t countBits(uint64_t value)
 constexpr uint32_t Receiver::SAMPLE_RATE;
 constexpr size_t Receiver::SAMPLES_PER_SYMBOL;
 constexpr size_t Receiver::MAX_LOST_FRAMES;
+constexpr size_t Receiver::SLOT_SAMPLES;
 constexpr size_t Receiver::EVENT_QUEUE_SIZE;
 constexpr size_t Receiver::FRAME_SAMPLES;
 constexpr size_t Receiver::FILTER_TAPS;
 
-Receiver::Receiver() : inverted(false)
+Receiver::Receiver() : inverted(false), repeater(false)
 {
+    setRepeater(false);
     reset();
 }
 
@@ -93,6 +96,7 @@ void Receiver::reset()
     endPtr = 0;
     syncPattern = MS_DATA_SYNC_SIGNS;
     timing = 0;
+    sampleTotal = 0;
     averagePtr = 0;
     dcLevel = 0.0f;
     dcPrevIn = 0.0f;
@@ -109,6 +113,8 @@ void Receiver::reset()
 
 void Receiver::unlock()
 {
+    lastSlot = -1;
+    slotMismatch = 0;
     locked = false;
     haveEnd = false;
     control = Control::NONE;
@@ -119,6 +125,18 @@ void Receiver::unlock()
 void Receiver::invertPhase(bool invert)
 {
     inverted = invert;
+}
+
+void Receiver::setRepeater(bool repeater)
+{
+    if (repeater != this->repeater)
+        unlock();
+
+    this->repeater = repeater;
+    dataSigns = repeater ? BS_DATA_SYNC_SIGNS : MS_DATA_SYNC_SIGNS;
+    voiceSigns = repeater ? BS_VOICE_SYNC_SIGNS : MS_VOICE_SYNC_SIGNS;
+    dataSync = repeater ? BS_DATA_SYNC : MS_DATA_SYNC;
+    voiceSync = repeater ? BS_VOICE_SYNC : MS_VOICE_SYNC;
 }
 
 void Receiver::process(const int16_t *samples, size_t count)
@@ -159,6 +177,8 @@ void Receiver::process(const int16_t *samples, size_t count)
         bitPtr++;
         if (bitPtr >= SAMPLES_PER_SYMBOL)
             bitPtr = 0;
+
+        sampleTotal++;
     }
 }
 
@@ -227,7 +247,7 @@ int16_t Receiver::filter(int16_t raw)
 void Receiver::correlateSync(bool first)
 {
     uint32_t signs = bitBuffer[bitPtr] & SYNC_SIGNS_MASK;
-    uint8_t errs = countBits(signs ^ MS_DATA_SYNC_SIGNS);
+    uint8_t errs = countBits(signs ^ dataSigns);
 
     // The voice sync is the complement of the data sync
     bool data = (errs <= MAX_SYNC_SIGN_ERRS);
@@ -236,7 +256,7 @@ void Receiver::correlateSync(bool first)
     if ((data == false) && (voice == false))
         return;
 
-    uint32_t pattern = data ? MS_DATA_SYNC_SIGNS : MS_VOICE_SYNC_SIGNS;
+    uint32_t pattern = data ? dataSigns : voiceSigns;
 
     // Sample of the first sync symbol
     size_t start =
@@ -281,7 +301,7 @@ void Receiver::correlateSync(bool first)
     for (size_t i = 0; i < sizeof(bits); i++)
         sync = (sync << 8) | bits[i];
 
-    uint64_t expected = data ? MS_DATA_SYNC : MS_VOICE_SYNC;
+    uint64_t expected = data ? dataSync : voiceSync;
     if (countBits(sync ^ expected) > MAX_SYNC_BIT_ERRS)
         return;
 
@@ -421,6 +441,20 @@ void Receiver::endOfBurst()
 
     Event ev;
     ev.type = Event::BURST;
+    ev.sampleIndex = sampleTotal;
+    ev.slot = -1;
+
+    // Repeater: the CACH, before the burst, gives its timeslot
+    if (repeater && (locked || (control != Control::NONE))) {
+        uint8_t cach[3] = { 0, 0, 0 };
+        size_t cachStart = (start + FRAME_SAMPLES
+                            - (CACH_SYMBOLS * SAMPLES_PER_SYMBOL))
+                         % FRAME_SAMPLES;
+        samplesToBits(cachStart, CACH_SYMBOLS, cach, 0,
+                      static_cast<int16_t>(c), static_cast<int16_t>(t),
+                      timing);
+        ev.slot = burstSlot(cach);
+    }
 
     switch (control) {
         case Control::DATA:
@@ -442,7 +476,8 @@ void Receiver::endOfBurst()
             }
 
             lostCount++;
-            if (lostCount >= MAX_LOST_FRAMES) {
+            if (lostCount >= (repeater ? 2 * MAX_LOST_FRAMES
+                                       : MAX_LOST_FRAMES)) {
                 Event lost = {};
                 lost.type = Event::LOST;
                 pushEvent(lost);
@@ -458,9 +493,38 @@ void Receiver::endOfBurst()
             break;
     }
 
-    // Next frame
+    // Next burst: one timeslot later from a repeater, in the same position
+    // of the next frame in direct mode
+    if (repeater) {
+        syncPtr = (syncPtr + SLOT_SAMPLES) % FRAME_SAMPLES;
+        endPtr = (endPtr + SLOT_SAMPLES) % FRAME_SAMPLES;
+    }
+
     maxCorr = 0;
     control = Control::NONE;
+}
+
+int8_t Receiver::burstSlot(const uint8_t *cach)
+{
+    Tact tact;
+    decodeCach(cach, tact);
+
+    int8_t slot = static_cast<int8_t>(tact.slot);
+    int8_t expected = (lastSlot < 0) ? slot
+                                     : static_cast<int8_t>(1 - lastSlot);
+
+    // Timeslots alternate: a CACH against the alternation is taken as
+    // corrupted, unless two come in a row
+    if (slot == expected) {
+        slotMismatch = 0;
+    } else if (++slotMismatch < 2) {
+        slot = expected;
+    } else {
+        slotMismatch = 0;
+    }
+
+    lastSlot = slot;
+    return slot;
 }
 
 void Receiver::pushEvent(const Event &ev)
@@ -561,4 +625,18 @@ void Demodulator::unlock()
 {
     if (receiver != nullptr)
         receiver->unlock();
+}
+
+void Demodulator::setRepeater(bool repeater)
+{
+    if (receiver != nullptr)
+        receiver->setRepeater(repeater);
+}
+
+uint32_t Demodulator::sampleCount() const
+{
+    if (receiver == nullptr)
+        return 0;
+
+    return receiver->sampleCount();
 }

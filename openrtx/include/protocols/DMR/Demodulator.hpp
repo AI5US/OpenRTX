@@ -39,6 +39,14 @@ struct Event {
 
     /// BURST only: burst bits, MMDVM bit order
     uint8_t burst[BURST_BYTES];
+
+    /// BURST only: receiver sample count one sample after the last symbol
+    /// of the burst, see Receiver::sampleCount()
+    uint32_t sampleIndex;
+
+    /// BURST only, repeater mode: timeslot of the burst from its CACH, 0
+    /// (TS1) or 1 (TS2); -1 in direct mode
+    int8_t slot;
 };
 
 /**
@@ -66,6 +74,9 @@ public:
     /// TDMA frames without sync before the synchronisation is lost
     static constexpr size_t MAX_LOST_FRAMES = 13;
 
+    /// Samples of a timeslot, the burst period of a repeater (30 ms)
+    static constexpr size_t SLOT_SAMPLES = SLOT_SYMBOLS * SAMPLES_PER_SYMBOL;
+
     /// Capacity of the event queue
     static constexpr size_t EVENT_QUEUE_SIZE = 4;
 
@@ -92,6 +103,28 @@ public:
      * @param invert: if true, the input signal phase is inverted.
      */
     void invertPhase(bool invert);
+
+    /**
+     * \brief Select the kind of transmission to receive, dropping the
+     * synchronisation when it changes. Direct mode: mobile station syncs, a
+     * burst every 60 ms. Repeater mode: base station syncs, a burst every
+     * 30 ms alternating between the two timeslots, each preceded by a CACH
+     * giving its timeslot.
+     *
+     * @param repeater: true to receive a repeater.
+     */
+    void setRepeater(bool repeater);
+
+    /**
+     * \brief Number of samples processed since the last reset, to relate
+     * the bursts to the time they were received.
+     *
+     * @return the sample count, wrapping around.
+     */
+    uint32_t sampleCount() const
+    {
+        return sampleTotal;
+    }
 
     /**
      * \brief Process a block of baseband samples.
@@ -199,7 +232,24 @@ private:
      */
     void pushEvent(const Event &ev);
 
+    /**
+     * Timeslot of the current burst, from its CACH checked against the
+     * alternation of the timeslots.
+     *
+     * @param cach: the CACH bits.
+     * @return the timeslot, 0 or 1.
+     */
+    int8_t burstSlot(const uint8_t *cach);
+
     bool inverted;        ///< Input phase inversion
+    bool repeater;        ///< Repeater mode
+    int8_t lastSlot;      ///< Timeslot of the last burst, -1 if unknown
+    uint8_t slotMismatch; ///< CACHs in a row against the alternation
+    uint32_t sampleTotal; ///< Samples processed
+    uint32_t dataSigns;   ///< Sign pattern of the data sync
+    uint32_t voiceSigns;  ///< Sign pattern of the voice sync
+    uint64_t dataSync;    ///< Data sync pattern
+    uint64_t voiceSync;   ///< Voice sync pattern
     bool locked;          ///< Locked on a transmission
     Control control;      ///< Sync found in the current frame
     uint8_t bitPtr;       ///< Current sampling phase, 0 to 4
@@ -290,6 +340,21 @@ public:
      * \brief Drop the synchronisation and look for a new transmission.
      */
     void unlock();
+
+    /**
+     * \brief Select direct or repeater reception, see Receiver::setRepeater().
+     *
+     * @param repeater: true to receive a repeater.
+     */
+    void setRepeater(bool repeater);
+
+    /**
+     * \brief Number of baseband samples processed, see
+     * Receiver::sampleCount().
+     *
+     * @return the sample count.
+     */
+    uint32_t sampleCount() const;
 
 private:
     /// Samples of half the baseband buffer: 20 ms
