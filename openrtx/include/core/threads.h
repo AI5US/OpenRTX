@@ -13,7 +13,7 @@
  * Threads' stack sizes
  */
 #define UI_THREAD_STKSIZE     2048
-#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF)
 /*
  * The D-STAR and DMR modes decode in the rtx thread, D-STAR radio header
  * Viterbi decoding and DMR BPTC decoding included.

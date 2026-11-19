@@ -40,6 +40,9 @@ enum codecType {
 #ifdef CONFIG_DMR
     CODEC_DMR_AMBE = 2, ///< DMR AMBE+2, 9 bytes per 20 ms frame
 #endif
+#ifdef CONFIG_YSF
+    CODEC_YSF_AMBE = 3, ///< YSF AMBE+2, 49 parameter bits in 7 bytes
+#endif
 };
 
 /**

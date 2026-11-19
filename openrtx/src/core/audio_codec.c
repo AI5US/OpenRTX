@@ -24,14 +24,15 @@
 #ifdef CONFIG_DSTAR
 #include "core/dstar_vocoder.h"
 #endif
-#ifdef CONFIG_DMR
+#if defined(CONFIG_DMR) || defined(CONFIG_YSF)
 #include "core/dmr_vocoder.h"
 #endif
-#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+#if defined(PLATFORM_C62) \
+    && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF))
 #include "mbe_heap.h"
 #endif
 
-#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF)
 /*
  * Codec thread stack for the AMBE codecs: the mbelib-neo encoders need about
  * 35 KB on Cortex-M (20 KB for the parameter quantisation frame alone).
@@ -44,9 +45,16 @@
  * 60 ms: its decoder keeps a deeper queue as a jitter buffer.
  */
 #define QUEUE_SIZE 4
-#ifdef CONFIG_DMR
 #define DMR_QUEUE_SIZE 8
 #define DMR_PREFILL 4 /* Frames queued before DMR playback starts */
+
+/* YSF voice comes in frames of five every 100 ms */
+#define YSF_QUEUE_SIZE 12
+#define YSF_PREFILL 6 /* Frames queued before YSF playback starts */
+
+#if defined(CONFIG_YSF)
+#define BUF_SIZE YSF_QUEUE_SIZE
+#elif defined(CONFIG_DMR)
 #define BUF_SIZE DMR_QUEUE_SIZE
 #else
 #define BUF_SIZE QUEUE_SIZE
@@ -55,7 +63,7 @@
 #define CODEC2_FRAME_SAMPLES 160 /* Samples per codec2 3200-mode frame */
 #define DMA_BUF_SAMPLES (CODEC2_FRAME_SAMPLES * 2) /* Double-buffered DMA */
 
-#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF)
 #define MAX_FRAME_SIZE 9 /* D-STAR AMBE and DMR AMBE+2 frames */
 #else
 #define MAX_FRAME_SIZE 8
@@ -88,7 +96,8 @@ static uint8_t dataBuffer[BUF_SIZE][MAX_FRAME_SIZE];
 static enum codecType curCodec;
 static size_t frameSize;
 static uint8_t queueSize;
-#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+#if defined(PLATFORM_C62) \
+    && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF))
 static bool stackInPsram; // Codec thread stack allocated in PSRAM
 #endif
 
@@ -246,7 +255,7 @@ static void *encodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
     dstarEncoder_t *dstar = NULL;
 #endif
-#ifdef CONFIG_DMR
+#if defined(CONFIG_DMR) || defined(CONFIG_YSF)
     dmrEncoder_t *dmr = NULL;
 #endif
     struct dcBlock dcBlock;
@@ -281,6 +290,11 @@ static void *encodeFunc(void *arg)
 #endif
 #ifdef CONFIG_DMR
     if (curCodec == CODEC_DMR_AMBE)
+        dmr = dmrEncoder_create();
+    else
+#endif
+#ifdef CONFIG_YSF
+    if (curCodec == CODEC_YSF_AMBE)
         dmr = dmrEncoder_create();
     else
 #endif
@@ -322,6 +336,11 @@ static void *encodeFunc(void *arg)
             dstarEncoder_encode(dstar, audio.data, frame);
         else
 #endif
+#ifdef CONFIG_YSF
+        if ((dmr != NULL) && (curCodec == CODEC_YSF_AMBE))
+            dmrEncoder_encodeParams(dmr, audio.data, frame);
+        else
+#endif
 #ifdef CONFIG_DMR
         if (dmr != NULL)
             dmrEncoder_encode(dmr, audio.data, frame);
@@ -355,7 +374,7 @@ static void *encodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
     dstarEncoder_destroy(dstar);
 #endif
-#ifdef CONFIG_DMR
+#if defined(CONFIG_DMR) || defined(CONFIG_YSF)
     dmrEncoder_destroy(dmr);
 #endif
 
@@ -380,7 +399,7 @@ static void *decodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
     dstarDecoder_t *dstar = NULL;
 #endif
-#ifdef CONFIG_DMR
+#if defined(CONFIG_DMR) || defined(CONFIG_YSF)
     dmrDecoder_t *dmr = NULL;
 #endif
 
@@ -404,6 +423,11 @@ static void *decodeFunc(void *arg)
         dmr = dmrDecoder_create();
     else
 #endif
+#ifdef CONFIG_YSF
+    if (curCodec == CODEC_YSF_AMBE)
+        dmr = dmrDecoder_create();
+    else
+#endif
         codec2 = codec2_create(CODEC2_MODE_3200);
 
     // Ensure that thread start is correctly synchronized with the output
@@ -412,12 +436,18 @@ static void *decodeFunc(void *arg)
     // noises at speaker output. Behaviour observed on both Module17 and MD-UV380
     outputStream_sync(oStream, false);
 
-    // DMR playback waits for a few queued frames, see DMR_PREFILL
-    bool playing = true;
+    // DMR and YSF playback waits for a few queued frames, see DMR_PREFILL
+    // and YSF_PREFILL
+    size_t prefill = 0;
 #ifdef CONFIG_DMR
     if (curCodec == CODEC_DMR_AMBE)
-        playing = false;
+        prefill = DMR_PREFILL;
 #endif
+#ifdef CONFIG_YSF
+    if (curCodec == CODEC_YSF_AMBE)
+        prefill = YSF_PREFILL;
+#endif
+    bool playing = (prefill == 0);
 
     while (reqStop == false) {
         // Invalid path, quit
@@ -430,15 +460,13 @@ static void *decodeFunc(void *arg)
 
         pthread_mutex_lock(&data_mutex);
 
-#ifdef CONFIG_DMR
         // Restart the jitter buffer when it runs empty
-        if (curCodec == CODEC_DMR_AMBE) {
+        if (prefill != 0) {
             if (numElements == 0)
                 playing = false;
-            else if (numElements >= DMR_PREFILL)
+            else if (numElements >= prefill)
                 playing = true;
         }
-#endif
 
         if (playing && (numElements != 0)) {
             memcpy(frame, dataBuffer[readPos], frameSize);
@@ -460,6 +488,11 @@ static void *decodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
             if (dstar != NULL)
                 dstarDecoder_decode(dstar, frame, audioBuf);
+            else
+#endif
+#ifdef CONFIG_YSF
+            if ((dmr != NULL) && (curCodec == CODEC_YSF_AMBE))
+                dmrDecoder_decodeParams(dmr, frame, audioBuf);
             else
 #endif
 #ifdef CONFIG_DMR
@@ -493,7 +526,7 @@ static void *decodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
     dstarDecoder_destroy(dstar);
 #endif
-#ifdef CONFIG_DMR
+#if defined(CONFIG_DMR) || defined(CONFIG_YSF)
     dmrDecoder_destroy(dmr);
 #endif
 
@@ -555,6 +588,12 @@ static bool startThread(const pathId path, const enum codecType type,
         queueSize = DMR_QUEUE_SIZE;
     } else
 #endif
+#ifdef CONFIG_YSF
+    if (type == CODEC_YSF_AMBE) {
+        frameSize = DMR_VOCODER_PARAMS_BYTES;
+        queueSize = YSF_QUEUE_SIZE;
+    } else
+#endif
         frameSize = 8;
     pthread_mutex_unlock(&init_mutex);
 
@@ -566,7 +605,7 @@ static bool startThread(const pathId path, const enum codecType type,
     pthread_attr_init(&codecAttr);
 
     size_t stackSize = CODEC2_THREAD_STKSIZE;
-#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF)
     if (type != CODEC_CODEC2_3200)
         stackSize = AMBE_THREAD_STKSIZE;
 #endif
@@ -584,7 +623,8 @@ static bool startThread(const pathId path, const enum codecType type,
     // Allocate and set the stack for CODEC2 thread. The large stack of the
     // AMBE codecs goes to PSRAM on the C62, where SRAM is too small for it.
     void *codec_thread_stack;
-#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+#if defined(PLATFORM_C62) \
+    && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF))
     stackInPsram = (stackSize != CODEC2_THREAD_STKSIZE);
     if (stackInPsram)
         codec_thread_stack = mbe_heap_aligned_alloc(64, stackSize);
@@ -619,7 +659,8 @@ static void stopThread()
     size_t size;
 
     pthread_attr_getstack(&codecAttr, &addr, &size);
-#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+#if defined(PLATFORM_C62) \
+    && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR) || defined(CONFIG_YSF))
     if (stackInPsram)
         mbe_heap_free(addr);
     else
