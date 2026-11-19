@@ -135,6 +135,32 @@ int dmrEncoder_encode(dmrEncoder_t *enc, const int16_t *pcm, uint8_t *frame)
     return 0;
 }
 
+/// Pack 49 parameter bits, one per char, first bit in the MSB of byte 0
+static void packParams(const char *bits, uint8_t *out)
+{
+    memset(out, 0x00, DMR_VOCODER_PARAMS_BYTES);
+    for (size_t i = 0; i < 49; i++) {
+        if (bits[i] != 0)
+            out[i / 8] |= (uint8_t)(0x80 >> (i % 8));
+    }
+}
+
+int dmrEncoder_encodeParams(dmrEncoder_t *enc, const int16_t *pcm,
+                            uint8_t *params)
+{
+    char bits[49];
+
+    int ret = mbe_encodeAmbe2450ParmsShort(enc->ctx, (const short *)pcm, bits,
+                                           &enc->cur, &enc->prev);
+    if (ret < 0)
+        return ret;
+
+    mbe_moveMbeParms(&enc->cur, &enc->prev);
+    packParams(bits, params);
+
+    return 0;
+}
+
 dmrDecoder_t *dmrDecoder_create()
 {
     dmrDecoder_t *dec = malloc(sizeof(dmrDecoder_t));
@@ -168,4 +194,16 @@ int dmrDecoder_decode(dmrDecoder_t *dec, const uint8_t *frame, int16_t *pcm)
                                          (const char(*)[24])planes, params,
                                          &dec->cur, &dec->prev,
                                          &dec->prevEnhanced);
+}
+
+int dmrDecoder_decodeParams(dmrDecoder_t *dec, const uint8_t *params,
+                            int16_t *pcm)
+{
+    char bits[49];
+    for (size_t i = 0; i < 49; i++)
+        bits[i] = (char)getBit(params, i);
+
+    int ret = mbe_processAmbe2450Data((short *)pcm, NULL, bits, &dec->cur,
+                                      &dec->prev, &dec->prevEnhanced);
+    return (ret < 0) ? ret : 0;
 }

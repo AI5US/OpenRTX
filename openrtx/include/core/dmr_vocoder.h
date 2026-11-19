@@ -38,6 +38,10 @@ extern "C" {
  */
 #define DMR_VOCODER_FRAME_BYTES 9
 
+/// Bytes of the 49 parameter bits of a frame, first bit in the most
+/// significant position: the form YSF sends, without the DMR frame FEC
+#define DMR_VOCODER_PARAMS_BYTES 7
+
 typedef struct dmrEncoder dmrEncoder_t;
 typedef struct dmrDecoder dmrDecoder_t;
 
@@ -76,6 +80,18 @@ void dmrEncoder_reset(dmrEncoder_t *enc);
 int dmrEncoder_encode(dmrEncoder_t *enc, const int16_t *pcm, uint8_t *frame);
 
 /**
+ * \brief Encode a 20 ms voice frame into its 49 parameter bits, without the
+ * frame FEC (Golay codes and interleave) of DMR.
+ *
+ * @param enc: encoder.
+ * @param pcm: DMR_VOCODER_FRAME_SAMPLES input samples.
+ * @param params: output buffer of DMR_VOCODER_PARAMS_BYTES bytes.
+ * @return 0 on success, a negative error code otherwise.
+ */
+int dmrEncoder_encodeParams(dmrEncoder_t *enc, const int16_t *pcm,
+                            uint8_t *params);
+
+/**
  * \brief Allocate and initialise a new decoder.
  *
  * @return the new decoder or NULL if there was not enough memory.
@@ -110,6 +126,18 @@ void dmrDecoder_reset(dmrDecoder_t *dec);
  * in case of failure.
  */
 int dmrDecoder_decode(dmrDecoder_t *dec, const uint8_t *frame, int16_t *pcm);
+
+/**
+ * \brief Decode a 20 ms voice frame from its 49 parameter bits, as YSF sends
+ * them: the transport has corrected what it could.
+ *
+ * @param dec: decoder.
+ * @param params: DMR_VOCODER_PARAMS_BYTES bytes.
+ * @param pcm: output buffer of DMR_VOCODER_FRAME_SAMPLES samples.
+ * @return 0 on success, a negative error code in case of failure.
+ */
+int dmrDecoder_decodeParams(dmrDecoder_t *dec, const uint8_t *params,
+                            int16_t *pcm);
 
 /**
  * \brief Convert a voice frame from the DMR air layout to the 4 x 24 bit
