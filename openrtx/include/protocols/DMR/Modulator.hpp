@@ -118,6 +118,24 @@ class Modulator
 {
 public:
     /**
+     * Function called for each block of baseband the output stream plays,
+     * from the transmitting thread, so that the TDMA timing of the radio,
+     * e.g. switching the power amplifier between the bursts, can follow the
+     * output samples exactly. It is called while the block plays, once the
+     * next one is ready: it can wait for an instant within the block without
+     * starving the stream.
+     *
+     * @param ctx: context given to setBlockCallback().
+     * @param sample: index, counted from start(), of the first sample of the
+     * block playing.
+     * @param tick: system tick when the block started playing.
+     */
+    using BlockCallback = void (*)(void *ctx, uint32_t sample, long long tick);
+
+    /// Samples of a baseband block: 20 ms, 96 symbols
+    static constexpr size_t BLOCK_SAMPLES = 96 * FskShaper::SAMPLES_PER_SYMBOL;
+
+    /**
      * Constructor.
      */
     Modulator();
@@ -192,6 +210,14 @@ public:
     void stop();
 
     /**
+     * Set the function called each time a block starts playing.
+     *
+     * @param callback: function to call, nullptr for none.
+     * @param ctx: context passed to the function.
+     */
+    void setBlockCallback(BlockCallback callback, void *ctx);
+
+    /**
      * \brief Invert the baseband signal phase before output.
      *
      * @param invert: if true, the signal phase is inverted.
@@ -220,18 +246,26 @@ private:
      */
     void sendBlock();
 
-    static constexpr uint32_t TX_SAMPLE_RATE = FskShaper::SAMPLE_RATE;
+    /**
+     * Call the block callback for the block playing, the one sent before
+     * the block being sent, then wait for the stream to start playing the
+     * latter. The stream plays one block of silence first.
+     */
+    void syncBlock();
 
-    /// Samples of a baseband block: 20 ms, 96 symbols
-    static constexpr size_t BLOCK_SAMPLES = 96 * FskShaper::SAMPLES_PER_SYMBOL;
+    static constexpr uint32_t TX_SAMPLE_RATE = FskShaper::SAMPLE_RATE;
 
     FskShaper shaper;                          ///< Pulse shaping filter
     std::unique_ptr<int16_t[]> basebandBuffer; ///< Two baseband blocks
     int16_t *idleBuffer; ///< Block being filled, not in use by the stream
-    size_t fill;         ///< Samples already written in idleBuffer
-    streamId outStream;  ///< Baseband output stream ID
-    pathId outPath;      ///< Baseband output path ID
-    bool txRunning;      ///< Transmission running
+    BlockCallback blockCallback; ///< Called when a block starts playing
+    void *blockCtx;              ///< Context of blockCallback
+    long long playTick;          ///< System tick of the last block start
+    size_t fill;                 ///< Samples already written in idleBuffer
+    uint32_t blocksSent;         ///< Blocks sent since start()
+    streamId outStream;          ///< Baseband output stream ID
+    pathId outPath;              ///< Baseband output path ID
+    bool txRunning;              ///< Transmission running
 
 #if defined(PLATFORM_MD3x0) || defined(PLATFORM_MDUV3x0)
     PwmCompensator pwmComp;

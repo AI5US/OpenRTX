@@ -8,6 +8,7 @@
  */
 
 #include <cstring>
+#include "interfaces/delays.h"
 #include "protocols/DMR/Modulator.hpp"
 
 #if defined(PLATFORM_LINUX)
@@ -105,7 +106,15 @@ size_t FskShaper::shape(int8_t symbol, int16_t *out)
 }
 
 Modulator::Modulator()
-    : idleBuffer(nullptr), fill(0), outStream(-1), outPath(-1), txRunning(false)
+    : idleBuffer(nullptr)
+    , blockCallback(nullptr)
+    , blockCtx(nullptr)
+    , playTick(0)
+    , fill(0)
+    , blocksSent(0)
+    , outStream(-1)
+    , outPath(-1)
+    , txRunning(false)
 {
 }
 
@@ -158,6 +167,7 @@ void Modulator::start()
     memset(basebandBuffer.get(), 0x00, 2 * BLOCK_SAMPLES * sizeof(int16_t));
     idleBuffer = basebandBuffer.get();
     fill = 0;
+    blocksSent = 0;
     shaper.reset();
 
 #if defined(PLATFORM_MD3x0) || defined(PLATFORM_MDUV3x0)
@@ -260,6 +270,25 @@ void Modulator::stop()
 #endif
 }
 
+void Modulator::setBlockCallback(BlockCallback callback, void *ctx)
+{
+    blockCallback = callback;
+    blockCtx = ctx;
+}
+
+void Modulator::syncBlock()
+{
+    if ((blockCallback != nullptr) && (blocksSent > 0))
+        blockCallback(blockCtx, (blocksSent - 1) * BLOCK_SAMPLES, playTick);
+
+#ifndef PLATFORM_LINUX
+    outputStream_sync(outStream, true);
+#endif
+
+    playTick = getTick();
+    blocksSent++;
+}
+
 void Modulator::invertPhase(bool invert)
 {
     shaper.invertPhase(invert);
@@ -311,7 +340,7 @@ void Modulator::sendBlock()
         return;
 
     // Wait for the stream to release the other block, then swap them
-    outputStream_sync(outStream, true);
+    syncBlock();
 
     int16_t *idle = outputStream_getIdleBuffer(outStream);
     if (idle != nullptr)
@@ -328,5 +357,6 @@ void Modulator::sendBlock()
     }
 
     fill = 0;
+    syncBlock();
 }
 #endif
