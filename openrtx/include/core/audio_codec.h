@@ -37,6 +37,9 @@ enum codecType {
 #ifdef CONFIG_DSTAR
     CODEC_DSTAR_AMBE = 1, ///< D-STAR AMBE, 9 bytes per 20 ms frame
 #endif
+#ifdef CONFIG_DMR
+    CODEC_DMR_AMBE = 2, ///< DMR AMBE+2, 9 bytes per 20 ms frame
+#endif
 };
 
 /**
@@ -105,7 +108,7 @@ bool codec_queueEmpty(const pathId path);
 
 /**
  * Get a compressed audio frame from the internal queue. Each frame is composed
- * of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE.
+ * of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE and DMR AMBE+2.
  *
  * @param frame: pointer to a destination buffer where to put the encoded frame.
  * @param blocking: if true the execution flow will be blocked whenever the
@@ -117,7 +120,8 @@ int codec_popFrame(uint8_t *frame, const bool blocking);
 
 /**
  * Push a a compressed audio frame to the internal queue for decoding.
- * Each frame is composed of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE.
+ * Each frame is composed of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE
+ * and DMR AMBE+2.
  *
  * @param frame: frame to be pushed to the queue.
  * @param blocking: if true the execution flow will be blocked whenever the

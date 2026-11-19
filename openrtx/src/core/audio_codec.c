@@ -24,13 +24,28 @@
 #ifdef CONFIG_DSTAR
 #include "core/dstar_vocoder.h"
 #endif
+#ifdef CONFIG_DMR
+#include "core/dmr_vocoder.h"
+#endif
 
-#define BUF_SIZE 4
+/*
+ * Frame queue capacity. DMR voice comes in bursts of three frames every
+ * 60 ms: its decoder keeps a deeper queue as a jitter buffer.
+ */
+#define QUEUE_SIZE 4
+#ifdef CONFIG_DMR
+#define DMR_QUEUE_SIZE 8
+#define DMR_PREFILL 4 /* Frames queued before DMR playback starts */
+#define BUF_SIZE DMR_QUEUE_SIZE
+#else
+#define BUF_SIZE QUEUE_SIZE
+#endif
+
 #define CODEC2_FRAME_SAMPLES 160 /* Samples per codec2 3200-mode frame */
 #define DMA_BUF_SAMPLES (CODEC2_FRAME_SAMPLES * 2) /* Double-buffered DMA */
 
-#ifdef CONFIG_DSTAR
-#define MAX_FRAME_SIZE DSTAR_VOCODER_FRAME_BYTES
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+#define MAX_FRAME_SIZE 9 /* D-STAR AMBE and DMR AMBE+2 frames */
 #else
 #define MAX_FRAME_SIZE 8
 #endif
@@ -61,6 +76,7 @@ static uint8_t numElements;
 static uint8_t dataBuffer[BUF_SIZE][MAX_FRAME_SIZE];
 static enum codecType curCodec;
 static size_t frameSize;
+static uint8_t queueSize;
 
 static void *encodeFunc(void *arg);
 static void *decodeFunc(void *arg);
@@ -81,6 +97,7 @@ void codec_init()
     readPos = 0;
     writePos = 0;
     numElements = 0;
+    queueSize = QUEUE_SIZE;
 }
 
 void codec_terminate()
@@ -158,7 +175,7 @@ int codec_popFrame(uint8_t *frame, const bool blocking)
     }
 
     memcpy(element, dataBuffer[readPos], frameSize);
-    readPos = (readPos + 1) % BUF_SIZE;
+    readPos = (readPos + 1) % queueSize;
     numElements -= 1;
     pthread_mutex_unlock(&data_mutex);
 
@@ -180,18 +197,18 @@ int codec_pushFrame(const uint8_t *frame, const bool blocking)
     memcpy(element, frame, frameSize);
 
     // No space available and non-blocking call: return
-    if ((numElements >= BUF_SIZE) && (blocking == false))
+    if ((numElements >= queueSize) && (blocking == false))
         return -EAGAIN;
 
     // Blocking call: wait until there is some free space
     pthread_mutex_lock(&data_mutex);
-    while (numElements >= BUF_SIZE) {
+    while (numElements >= queueSize) {
         pthread_cond_wait(&wakeup_cond, &data_mutex);
     }
 
     // There is free space, push data into the queue
     memcpy(dataBuffer[writePos], element, frameSize);
-    writePos = (writePos + 1) % BUF_SIZE;
+    writePos = (writePos + 1) % queueSize;
     numElements += 1;
 
     pthread_mutex_unlock(&data_mutex);
@@ -205,6 +222,9 @@ static void *encodeFunc(void *arg)
     struct CODEC2 *codec2 = NULL;
 #ifdef CONFIG_DSTAR
     dstarEncoder_t *dstar = NULL;
+#endif
+#ifdef CONFIG_DMR
+    dmrEncoder_t *dmr = NULL;
 #endif
     struct dcBlock dcBlock;
     struct voiceBand voiceBand;
@@ -234,6 +254,11 @@ static void *encodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
     if (curCodec == CODEC_DSTAR_AMBE)
         dstar = dstarEncoder_create();
+    else
+#endif
+#ifdef CONFIG_DMR
+    if (curCodec == CODEC_DMR_AMBE)
+        dmr = dmrEncoder_create();
     else
 #endif
         codec2 = codec2_create(CODEC2_MODE_3200);
@@ -267,11 +292,16 @@ static void *encodeFunc(void *arg)
         }
 
         // Encode 160 speech samples (20 ms) into a frame: 8 bytes for CODEC2,
-        // 9 bytes for D-STAR AMBE.
+        // 9 bytes for D-STAR AMBE and DMR AMBE+2.
         uint8_t frame[MAX_FRAME_SIZE] = { 0 };
 #ifdef CONFIG_DSTAR
         if (dstar != NULL)
             dstarEncoder_encode(dstar, audio.data, frame);
+        else
+#endif
+#ifdef CONFIG_DMR
+        if (dmr != NULL)
+            dmrEncoder_encode(dmr, audio.data, frame);
         else
 #endif
         if (codec2 != NULL)
@@ -280,17 +310,17 @@ static void *encodeFunc(void *arg)
         pthread_mutex_lock(&data_mutex);
 
         // If buffer is full erase the oldest frame
-        if (numElements >= BUF_SIZE) {
-            readPos = (readPos + 1) % BUF_SIZE;
+        if (numElements >= queueSize) {
+            readPos = (readPos + 1) % queueSize;
         }
 
         memcpy(dataBuffer[writePos], frame, frameSize);
-        writePos = (writePos + 1) % BUF_SIZE;
+        writePos = (writePos + 1) % queueSize;
 
         if (numElements == 0)
             pthread_cond_signal(&wakeup_cond);
 
-        if (numElements < BUF_SIZE)
+        if (numElements < queueSize)
             numElements += 1;
 
         pthread_mutex_unlock(&data_mutex);
@@ -301,6 +331,9 @@ static void *encodeFunc(void *arg)
         codec2_destroy(codec2);
 #ifdef CONFIG_DSTAR
     dstarEncoder_destroy(dstar);
+#endif
+#ifdef CONFIG_DMR
+    dmrEncoder_destroy(dmr);
 #endif
 
 exit:
@@ -324,6 +357,9 @@ static void *decodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
     dstarDecoder_t *dstar = NULL;
 #endif
+#ifdef CONFIG_DMR
+    dmrDecoder_t *dmr = NULL;
+#endif
 
     // Open output stream
     memset(audioBuf, 0x00, DMA_BUF_SAMPLES * sizeof(stream_sample_t));
@@ -340,6 +376,11 @@ static void *decodeFunc(void *arg)
         dstar = dstarDecoder_create();
     else
 #endif
+#ifdef CONFIG_DMR
+    if (curCodec == CODEC_DMR_AMBE)
+        dmr = dmrDecoder_create();
+    else
+#endif
         codec2 = codec2_create(CODEC2_MODE_3200);
 
     // Ensure that thread start is correctly synchronized with the output
@@ -347,6 +388,13 @@ static void *decodeFunc(void *arg)
     // being read at the same time by the output stream system causing cracking
     // noises at speaker output. Behaviour observed on both Module17 and MD-UV380
     outputStream_sync(oStream, false);
+
+    // DMR playback waits for a few queued frames, see DMR_PREFILL
+    bool playing = true;
+#ifdef CONFIG_DMR
+    if (curCodec == CODEC_DMR_AMBE)
+        playing = false;
+#endif
 
     while (reqStop == false) {
         // Invalid path, quit
@@ -359,10 +407,20 @@ static void *decodeFunc(void *arg)
 
         pthread_mutex_lock(&data_mutex);
 
-        if (numElements != 0) {
+#ifdef CONFIG_DMR
+        // Restart the jitter buffer when it runs empty
+        if (curCodec == CODEC_DMR_AMBE) {
+            if (numElements == 0)
+                playing = false;
+            else if (numElements >= DMR_PREFILL)
+                playing = true;
+        }
+#endif
+
+        if (playing && (numElements != 0)) {
             memcpy(frame, dataBuffer[readPos], frameSize);
-            readPos = (readPos + 1) % BUF_SIZE;
-            if (numElements >= BUF_SIZE)
+            readPos = (readPos + 1) % queueSize;
+            if (numElements >= queueSize)
                 pthread_cond_signal(&wakeup_cond);
 
             numElements -= 1;
@@ -379,6 +437,11 @@ static void *decodeFunc(void *arg)
 #ifdef CONFIG_DSTAR
             if (dstar != NULL)
                 dstarDecoder_decode(dstar, frame, audioBuf);
+            else
+#endif
+#ifdef CONFIG_DMR
+            if (dmr != NULL)
+                dmrDecoder_decode(dmr, frame, audioBuf);
             else
 #endif
             if (codec2 != NULL)
@@ -406,6 +469,9 @@ static void *decodeFunc(void *arg)
         codec2_destroy(codec2);
 #ifdef CONFIG_DSTAR
     dstarDecoder_destroy(dstar);
+#endif
+#ifdef CONFIG_DMR
+    dmrDecoder_destroy(dmr);
 #endif
 
     // In case thread terminates due to invalid path or stream error, detach it
@@ -454,10 +520,17 @@ static bool startThread(const pathId path, const enum codecType type,
     running = true;
     audioPath = path;
     curCodec = type;
+    queueSize = QUEUE_SIZE;
 #ifdef CONFIG_DSTAR
     if (type == CODEC_DSTAR_AMBE)
         frameSize = DSTAR_VOCODER_FRAME_BYTES;
     else
+#endif
+#ifdef CONFIG_DMR
+    if (type == CODEC_DMR_AMBE) {
+        frameSize = DMR_VOCODER_FRAME_BYTES;
+        queueSize = DMR_QUEUE_SIZE;
+    } else
 #endif
         frameSize = 8;
     pthread_mutex_unlock(&init_mutex);
