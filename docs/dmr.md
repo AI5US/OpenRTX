@@ -115,9 +115,7 @@ What it took, worth knowing for other radios:
   UI (screen refresh) and codec threads;
 - the AMBE encoders need about 35 KB of stack and 42 KB of heap, and compute
   in single precision on Cortex-M (`mbe_float_math.h`): in double precision
-  they were too slow for real time on the C62's single precision FPU;
-- on the C62, build with `-DC62_BASEBAND_DUMP=OFF`: with the RX baseband dump
-  on, transmissions were cut after about half a second while PTT was held.
+  they were too slow for real time on the C62's single precision FPU.
 
 Still to verify on air: the other radios (deviation, phase, RAM: the MD-3x0
 may not have room for the 48 KB codec stack), MMDVM simplex hotspots.
@@ -159,11 +157,10 @@ about 5 KB and 4 KB of heap while the mode is active.
 meson setup -Ddmr=true build      # Linux, MD-3x0, MD-UV3x0, Module17, ...
 ```
 
-On the Retevis C62 (see `scripts/c62/README.md`):
+On the Retevis C62 (see `platform/targets/c62/README.md`):
 
 ```bash
-docker run --rm -it --user "$(id -u):$(id -g)" \
-    -v "$PWD":/work openrtx-c62 c62-build -DC62_DMR=ON
+west build -b c62 -d build . -- -DC62_DMR=ON
 ```
 
 D-STAR and DMR can be enabled together; they share mbelib-neo.
