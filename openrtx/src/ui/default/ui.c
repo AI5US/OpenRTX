@@ -183,6 +183,7 @@ const char * settings_m17_items[] =
 #ifdef CONFIG_DSTAR
 const char *settings_dstar_items[] =
 {
+    "Callsign",
     "UR",
     "RPT1",
     "RPT2",
@@ -1235,6 +1236,10 @@ static void _ui_textInputDel(char *buf)
 static char *_ui_dstarSetting(uint8_t item, size_t *maxLen)
 {
     switch (item) {
+        case DSTAR_MY:
+            // The radio callsign, shared with M17: D-STAR sends 8 characters
+            *maxLen = 8;
+            return state.settings.callsign;
         case DSTAR_UR:
             *maxLen = 8;
             return state.settings.dstar_ur;
@@ -2572,9 +2577,11 @@ void ui_updateFSM(bool *sync_rtx)
                     else if(input_isCharPressed(msg))
                     {
                         // Free text: callsign fields may hold spaces before
-                        // the module letter
+                        // the module letter. The radio callsign is entered
+                        // as in the M17 settings.
                         _ui_textInputKeypad(ui_state.new_meta_text, maxLen,
-                                            msg, false);
+                                            msg, ui_state.menu_selected
+                                                     == DSTAR_MY);
                     }
                 }
                 else
