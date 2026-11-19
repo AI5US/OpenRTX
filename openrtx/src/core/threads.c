@@ -101,6 +101,8 @@ void *ui_threadFunc(void *arg)
             rtx_cfg.dmrPrivateCall = state.settings.dmr_private;
             rtx_cfg.dmrTxColorCode = state.settings.dmr_cc;
             rtx_cfg.dmrRxColorCode = state.settings.dmr_cc;
+            rtx_cfg.dmrSlot        = state.settings.dmr_slot;
+            rtx_cfg.dmrTxTiming    = state.settings.dmr_tx_timing;
 
             contact_t contact;
             if ((state.channel.mode == OPMODE_DMR)
@@ -113,6 +115,8 @@ void *ui_threadFunc(void *arg)
                                           == PRIVATE);
                 rtx_cfg.dmrTxColorCode = state.channel.dmr.txColorCode;
                 rtx_cfg.dmrRxColorCode = state.channel.dmr.rxColorCode;
+                rtx_cfg.dmrSlot        = (state.channel.dmr.dmr_timeslot
+                                          == 2) ? 1 : 0;
             }
 #endif
 

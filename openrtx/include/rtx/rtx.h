@@ -68,6 +68,8 @@ typedef struct
     uint8_t  dmrTxColorCode : 4,       /**< DMR TX colour code         */
              dmrRxColorCode : 4;       /**< DMR RX colour code         */
     bool     dmrPrivateCall;           /**< DMR TX private call        */
+    uint8_t  dmrSlot;                  /**< DMR repeater timeslot, 0/1 */
+    int8_t   dmrTxTiming;              /**< DMR repeater TX advance    */
     bool     dmrLcOk;                  /**< DMR RX link control valid  */
     bool     DMR_group;                /**< DMR RX group call          */
     uint32_t DMR_src;                  /**< DMR RX source ID           */

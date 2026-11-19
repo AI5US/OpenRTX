@@ -62,7 +62,9 @@ typedef struct
     uint32_t dmr_dest;            // DMR destination: talkgroup or radio ID
     uint8_t  dmr_cc        : 4,   // DMR colour code
              dmr_private   : 1,   // DMR private call to dmr_dest
-             _dmr_reserved : 3;
+             dmr_slot      : 1,   // DMR repeater timeslot, 0: TS1, 1: TS2
+             _dmr_reserved : 2;
+    int8_t   dmr_tx_timing;       // DMR repeater TX advance, in symbols
 #endif
 }
 __attribute__((packed)) settings_t;
@@ -103,7 +105,9 @@ static const settings_t default_settings =
     9,                            // DMR destination, talkgroup 9
     1,                            // DMR colour code
     0,                            // DMR group call
+    0,                            // DMR timeslot 1
     0,                            // not used
+    0,                            // DMR repeater TX advance
 #endif
 };
 
