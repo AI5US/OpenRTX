@@ -49,6 +49,116 @@ target_include_directories(app
 
 target_compile_definitions(app PRIVATE PLATFORM_C62)
 
+# C62_DSTAR: D-STAR support, with the software AMBE vocoder of mbelib-neo,
+#   which west fetches to modules/lib/mbelib-neo (and PFFFT, its FFT, to
+#   modules/lib/pffft).
+option(C62_DSTAR "D-STAR support" OFF)
+# C62_DMR: DMR direct mode voice, with the software AMBE+2 vocoder of
+#   mbelib-neo (fetched as for C62_DSTAR).
+option(C62_DMR "DMR support" OFF)
+
+# mbelib-neo, the vocoder library shared by D-STAR and DMR
+if(C62_DSTAR OR C62_DMR)
+  set(C62_MBELIB ${WEST_TOPDIR}/modules/lib/mbelib-neo)
+  set(C62_PFFFT ${WEST_TOPDIR}/modules/lib/pffft)
+  if(NOT EXISTS ${C62_MBELIB}/src/ambe/ambe3600x2400_enc.c
+     OR NOT EXISTS ${C62_PFFFT}/src/pffft.c)
+    message(FATAL_ERROR "mbelib-neo or PFFFT not found in ${WEST_TOPDIR}/"
+                        "modules/lib: run 'west update --group-filter +csk6', "
+                        "or build with -DC62_DSTAR=OFF -DC62_DMR=OFF")
+  endif()
+
+  # mbelib-neo's own build downloads PFFFT, build the sources here instead.
+  # Same source list as subprojects/packagefiles/mbelib-neo/meson.build: the
+  # AMBE and IMBE vocoders, not the TETRA decoder.
+  # version.h, without touching this project's PROJECT_VERSION
+  file(READ ${C62_MBELIB}/include/mbelib-neo/version.h.in c62_mbelib_version)
+  string(REPLACE "@PROJECT_VERSION@" "2.6.11" c62_mbelib_version
+         "${c62_mbelib_version}")
+  file(CONFIGURE
+       OUTPUT ${CMAKE_BINARY_DIR}/mbelib-neo/include/mbelib-neo/version.h
+       CONTENT "${c62_mbelib_version}" @ONLY)
+  add_library(mbe_neo STATIC
+    ${C62_MBELIB}/src/ambe/ambe3600x2400.c
+    ${C62_MBELIB}/src/ambe/ambe3600x2400_enc.c
+    ${C62_MBELIB}/src/ambe/dstar_frame.c
+    ${C62_MBELIB}/src/ambe/ambe3600x2450.c
+    ${C62_MBELIB}/src/ambe/ambe3600x2450_enc.c
+    ${C62_MBELIB}/src/ambe/ambe_common.c
+    ${C62_MBELIB}/src/ambe/ambe_encoder.c
+    ${C62_MBELIB}/src/ecc/ecc_soft.c
+    ${C62_MBELIB}/src/ecc/ecc_soft_search.c
+    ${C62_MBELIB}/src/ecc/ecc.c
+    ${C62_MBELIB}/src/ecc/ecc_const.c
+    ${C62_MBELIB}/src/imbe/imbe7100x4400.c
+    ${C62_MBELIB}/src/imbe/imbe7200x4400.c
+    ${C62_MBELIB}/src/imbe/imbe7200x4400_enc.c
+    ${C62_MBELIB}/src/core/mbelib.c
+    ${C62_MBELIB}/src/core/mbe_cpu.c
+    ${C62_MBELIB}/src/core/mbe_voiced.c
+    ${C62_MBELIB}/src/core/mbe_pcm_convert.c
+    ${C62_MBELIB}/src/core/mbe_adaptive.c
+    ${C62_MBELIB}/src/core/mbe_encoder.c
+    ${C62_MBELIB}/src/core/mbe_speech_analysis.c
+    ${C62_MBELIB}/src/core/mbe_subframe.c
+    ${C62_MBELIB}/src/core/mbe_tone_detect.c
+    ${C62_MBELIB}/src/core/mbe_tone_fit.c
+    ${C62_MBELIB}/src/core/mbe_unvoiced_fft.c
+    ${C62_PFFFT}/src/pffft.c
+    ${C62_PFFFT}/src/pffft_common.c)
+  # Build it with the Zephyr compiler flags (CPU, FPU, ABI)
+  target_link_libraries(mbe_neo PRIVATE zephyr_interface)
+  target_include_directories(mbe_neo
+    PUBLIC
+      ${C62_MBELIB}/include
+      ${CMAKE_BINARY_DIR}/mbelib-neo/include
+    PRIVATE
+      ${C62_MBELIB}
+      ${C62_MBELIB}/src/internal
+      ${C62_PFFFT}/include/pffft
+      ${C62_PFFFT}/src)
+  # Zephyr builds C as C99: _DEFAULT_SOURCE makes newlib's math.h define
+  # M_PI and M_SQRT2, used by mbelib-neo
+  target_compile_definitions(mbe_neo
+    PUBLIC MBE_STATIC=1
+    PRIVATE PFFFT_STATIC_DEFINE PFFFT_SIMD_DISABLE=1 _DEFAULT_SOURCE)
+  # Single thread use, no thread-local storage. Allocations in PSRAM, the
+  # encoders do not fit in the SRAM malloc arena (see mbe_psram_heap.h).
+  target_compile_options(mbe_neo PRIVATE -w
+    "SHELL:-include ${OPENRTX_ROOT}/subprojects/packagefiles/mbelib-neo/mbe_single_thread.h"
+    "SHELL:-include ${OPENRTX_ROOT}/platform/targets/c62/mbe_psram_heap.h")
+
+  target_link_libraries(app PRIVATE mbe_neo)
+  target_sources(app PRIVATE ${OPENRTX_ROOT}/platform/targets/c62/mbe_heap.c)
+endif()
+
+if(C62_DSTAR)
+  target_sources(app PRIVATE
+    ${OPENRTX_ROOT}/openrtx/src/core/dstar_vocoder.c
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/Header.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/HeaderCoder.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/SlowData.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/Modulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/Demodulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/rtx/OpMode_DSTAR.cpp)
+  target_compile_definitions(app PRIVATE CONFIG_DSTAR)
+endif()
+
+if(C62_DMR)
+  target_sources(app PRIVATE
+    ${OPENRTX_ROOT}/openrtx/src/core/dmr_vocoder.c
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Fec.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Burst.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Lc.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Voice.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Modulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Demodulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/rtx/OpMode_DMR.cpp)
+  target_compile_definitions(app PRIVATE CONFIG_DMR)
+endif()
+
+message(STATUS "C62: D-STAR ${C62_DSTAR}, DMR ${C62_DMR}")
+
 #
 # DSP firmware, flashed separately at 0x100000 (dsp_firmware partition). The
 # firmware does not boot without it, and it must match the audio code, so the
