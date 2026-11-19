@@ -10,6 +10,7 @@
 #include "interfaces/delays.h"
 #include "interfaces/radio.h"
 #include "protocols/DMR/Constants.hpp"
+#include "protocols/DMR/Csbk.hpp"
 #include "protocols/DMR/Lc.hpp"
 #include "core/audio_codec.h"
 #include "rtx/OpMode_DMR.hpp"
@@ -23,7 +24,15 @@ extern mod17Calib_t mod17CalData;
 using namespace DMR;
 
 OpMode_DMR::OpMode_DMR()
-    : startRx(false)
+    : rxClock(0)
+    , downlinkEnd(0)
+    , downlinkTick(0)
+    , wakeupTick(0)
+    , rxClockCount(0)
+    , rxClockValid(false)
+    , repeater(false)
+    , wakeups(0)
+    , startRx(false)
     , startTx(false)
     , invertTxPhase(false)
     , invertRxPhase(false)
@@ -43,6 +52,10 @@ void OpMode_DMR::enable()
     modulator.init();
     demodulator.init();
     voiceDec.reset();
+    repeater = false;
+    demodulator.setRepeater(false);
+    downlinkTick = 0;
+    wakeups = 0;
     startRx = true;
     startTx = false;
 }
@@ -90,6 +103,14 @@ void OpMode_DMR::update(rtxStatus_t *const status, const bool newCfg)
 #endif
 
     voiceDec.setColorCode(status->dmrRxColorCode);
+
+    bool split = (status->txFrequency != status->rxFrequency);
+    if (split != repeater) {
+        repeater = split;
+        demodulator.setRepeater(repeater);
+        voiceDec.reset();
+        downlinkTick = 0;
+    }
 
     switch (status->opStatus) {
         case OFF:
@@ -158,21 +179,37 @@ void OpMode_DMR::rxState(rtxStatus_t *const status)
     if (startRx) {
         demodulator.startBasebandSampling();
         radio_enableRx();
+        rxClockValid = false;
         startRx = false;
     }
 
     demodulator.update(invertRxPhase);
+    trackRxClock();
 
     Event ev;
     while (demodulator.popEvent(ev))
         rxEvent(ev, status);
 
-    if (platform_getPttStatus()) {
-        demodulator.stopBasebandSampling();
-        voiceDec.reset();
-        stopPlayback(status);
-        status->opStatus = OFF;
+    if (platform_getPttStatus() == false) {
+        wakeups = 0;
+        return;
     }
+
+    // A repeater transmission is timed on the downlink: wake the repeater
+    // up and wait for it, giving up after a few attempts
+    if (repeater && (downlinkKnown() == false)) {
+        bool waited = (getTick() - wakeupTick) >= WAKEUP_WAIT_MS;
+        if ((status->txDisable == 0) && (wakeups < WAKEUP_TRIES)
+            && ((wakeups == 0) || waited))
+            sendWakeup(status);
+
+        return;
+    }
+
+    demodulator.stopBasebandSampling();
+    voiceDec.reset();
+    stopPlayback(status);
+    status->opStatus = OFF;
 }
 
 void OpMode_DMR::rxEvent(const Event &ev, rtxStatus_t *const status)
@@ -181,6 +218,12 @@ void OpMode_DMR::rxEvent(const Event &ev, rtxStatus_t *const status)
         voiceDec.reset();
         stopPlayback(status);
         return;
+    }
+
+    if (repeater) {
+        trackDownlink(ev, status);
+        if (ev.slot != status->dmrSlot)
+            return;
     }
 
     VoiceEvent vev;
@@ -213,8 +256,10 @@ void OpMode_DMR::rxEvent(const Event &ev, rtxStatus_t *const status)
     if (vev.callEnd) {
         stopPlayback(status);
 
-        // The next call may come with another timing
-        demodulator.unlock();
+        // The next direct mode call may come with another timing, while a
+        // repeater keeps its own
+        if (repeater == false)
+            demodulator.unlock();
     }
 }
 
@@ -245,6 +290,92 @@ void OpMode_DMR::stopPlayback(rtxStatus_t *const status)
     status->DMR_dst = 0;
 }
 
+void OpMode_DMR::trackRxClock()
+{
+    uint32_t count = demodulator.sampleCount();
+    if (rxClockValid && (count == rxClockCount))
+        return;
+
+    // The lowest offset is the one with the shortest input latency. Let it
+    // rise slowly, to follow the drift between the two clocks.
+    long long offset = (getTick() * TICK_SAMPLES) - count;
+    if ((rxClockValid == false) || (offset < rxClock))
+        rxClock = offset;
+    else
+        rxClock++;
+
+    rxClockCount = count;
+    rxClockValid = true;
+}
+
+void OpMode_DMR::trackDownlink(const Event &ev, rtxStatus_t *const status)
+{
+    if ((ev.slot < 0) || (rxClockValid == false))
+        return;
+
+    // Bursts of the other timeslot end 30 ms before those of ours
+    long long end = rxClock + ev.sampleIndex;
+    if (ev.slot != status->dmrSlot)
+        end += Receiver::SLOT_SAMPLES;
+
+    downlinkEnd = end;
+    downlinkTick = getTick();
+}
+
+bool OpMode_DMR::downlinkKnown() const
+{
+    return (downlinkTick != 0)
+        && ((getTick() - downlinkTick) < DOWNLINK_TIMEOUT_MS);
+}
+
+void OpMode_DMR::sendWakeup(rtxStatus_t *const status)
+{
+    uint8_t burst[BURST_BYTES];
+    encodeBsDwnAct(ALL_ID, status->dmrSrcId & ALL_ID, status->dmrTxColorCode,
+                   burst);
+
+    demodulator.stopBasebandSampling();
+    radio_disableRtx();
+    radio_enableTx();
+
+    modulator.invertPhase(invertTxPhase);
+    modulator.start();
+    for (size_t i = 0; i < WAKEUP_BURSTS; i++)
+        modulator.sendSlot(burst);
+    modulator.stop();
+
+    radio_disableRtx();
+    wakeups++;
+    wakeupTick = getTick();
+    startRx = true;
+}
+
+void OpMode_DMR::alignToSlot(rtxStatus_t *const status, long long startTick)
+{
+    static constexpr long long SPS = Receiver::SAMPLES_PER_SYMBOL;
+    static constexpr long long FRAME = FRAME_SYMBOLS * SPS;
+
+    // The output stream plays a block of silence before the first block
+    // filled, see Modulator::start()
+    long long start = (startTick + TX_STREAM_DELAY_MS) * TICK_SAMPLES;
+    long long advance = status->dmrTxTiming;
+    long long target = downlinkEnd + ((TX_GUARD_SYMBOLS - advance) * SPS);
+
+    long long lead = (target - start) % FRAME;
+    if (lead < 0)
+        lead += FRAME;
+
+    modulator.sendCarrier(static_cast<size_t>(lead / SPS));
+}
+
+void OpMode_DMR::sendBurst(const uint8_t *burst)
+{
+    if (repeater)
+        modulator.sendSlot(burst);
+    else
+        modulator.sendFrame(burst);
+}
+
 void OpMode_DMR::txState(rtxStatus_t *const status)
 {
     uint8_t burst[BURST_BYTES];
@@ -264,11 +395,14 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
 
         modulator.invertPhase(invertTxPhase);
         modulator.start();
-        modulator.sendPreamble(PREAMBLE_BYTES);
+        if (repeater)
+            alignToSlot(status, getTick());
+        else
+            modulator.sendPreamble(PREAMBLE_BYTES);
 
         voiceEnc.header(burst);
         for (size_t i = 0; i < TX_HEADERS; i++)
-            modulator.sendFrame(burst);
+            sendBurst(burst);
 
         // A voice burst needs three frames of speech, and only one block of
         // baseband is buffered while waiting for them: should a frame come
@@ -280,7 +414,7 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
                 || (codec_queuedFrames() >= TX_PREFILL_FRAMES))
                 break;
 
-            modulator.sendFrame(burst);
+            sendBurst(burst);
         }
     }
 
@@ -295,11 +429,11 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
     }
 
     voiceEnc.voice(frames, burst);
-    modulator.sendFrame(burst);
+    sendBurst(burst);
 
     if (platform_getPttStatus() == false) {
         voiceEnc.terminator(burst);
-        modulator.sendFrame(burst);
+        sendBurst(burst);
         modulator.stop();
         startRx = true;
         status->opStatus = OFF;
