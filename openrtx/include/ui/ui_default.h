@@ -153,7 +153,8 @@ enum settingsM17Items
 
 enum settingsDStarItems
 {
-    DSTAR_UR = 0,
+    DSTAR_MY = 0,
+    DSTAR_UR,
     DSTAR_RPT1,
     DSTAR_RPT2,
     DSTAR_MESSAGE

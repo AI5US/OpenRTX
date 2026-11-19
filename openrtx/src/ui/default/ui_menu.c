@@ -1060,6 +1060,9 @@ int _ui_getDStarValueName(char *buf, uint8_t max_len, uint8_t index)
     const char *value;
 
     switch (index) {
+        case DSTAR_MY:
+            value = last_state.settings.callsign;
+            break;
         case DSTAR_UR:
             value = last_state.settings.dstar_ur;
             break;
