@@ -27,6 +27,17 @@
 #ifdef CONFIG_DMR
 #include "core/dmr_vocoder.h"
 #endif
+#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+#include "mbe_heap.h"
+#endif
+
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+/*
+ * Codec thread stack for the AMBE codecs: the mbelib-neo encoders need about
+ * 35 KB on Cortex-M (20 KB for the parameter quantisation frame alone).
+ */
+#define AMBE_THREAD_STKSIZE 49152
+#endif
 
 /*
  * Frame queue capacity. DMR voice comes in bursts of three frames every
@@ -77,6 +88,9 @@ static uint8_t dataBuffer[BUF_SIZE][MAX_FRAME_SIZE];
 static enum codecType curCodec;
 static size_t frameSize;
 static uint8_t queueSize;
+#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+static bool stackInPsram; // Codec thread stack allocated in PSRAM
+#endif
 
 static void *encodeFunc(void *arg);
 static void *decodeFunc(void *arg);
@@ -542,19 +556,39 @@ static bool startThread(const pathId path, const enum codecType type,
 
     pthread_attr_init(&codecAttr);
 
+    size_t stackSize = CODEC2_THREAD_STKSIZE;
+#if defined(CONFIG_DSTAR) || defined(CONFIG_DMR)
+    if (type != CODEC_CODEC2_3200)
+        stackSize = AMBE_THREAD_STKSIZE;
+#endif
+    (void)stackSize;
+
 #if defined(_MIOSIX)
-    // Set stack size of CODEC2 thread to 16kB.
-    pthread_attr_setstacksize(&codecAttr, CODEC2_THREAD_STKSIZE);
+    // Set stack size of CODEC2 thread to 16kB, more for the AMBE codecs.
+    pthread_attr_setstacksize(&codecAttr, stackSize);
 
     // Set priority of CODEC2 thread to the maximum one, the same of RTX thread.
     struct sched_param param;
     param.sched_priority = THREAD_PRIO_HIGH;
     pthread_attr_setschedparam(&codecAttr, &param);
 #elif defined(__ZEPHYR__)
-    // Allocate and set the stack for CODEC2 thread
-    void *codec_thread_stack = malloc(CODEC2_THREAD_STKSIZE * sizeof(uint8_t));
-    pthread_attr_setstack(&codecAttr, codec_thread_stack,
-                          CODEC2_THREAD_STKSIZE);
+    // Allocate and set the stack for CODEC2 thread. The large stack of the
+    // AMBE codecs goes to PSRAM on the C62, where SRAM is too small for it.
+    void *codec_thread_stack;
+#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+    stackInPsram = (stackSize != CODEC2_THREAD_STKSIZE);
+    if (stackInPsram)
+        codec_thread_stack = mbe_heap_aligned_alloc(64, stackSize);
+    else
+#endif
+        codec_thread_stack = malloc(stackSize * sizeof(uint8_t));
+
+    if (codec_thread_stack == NULL) {
+        running = false;
+        return false;
+    }
+
+    pthread_attr_setstack(&codecAttr, codec_thread_stack, stackSize);
 #endif
 
     // Start thread
@@ -576,6 +610,11 @@ static void stopThread()
     size_t size;
 
     pthread_attr_getstack(&codecAttr, &addr, &size);
-    free(addr);
+#if defined(PLATFORM_C62) && (defined(CONFIG_DSTAR) || defined(CONFIG_DMR))
+    if (stackInPsram)
+        mbe_heap_free(addr);
+    else
+#endif
+        free(addr);
 #endif
 }
