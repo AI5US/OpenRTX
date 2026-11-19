@@ -1373,3 +1373,12 @@ if get_option('dstar')
   test('D-STAR Protocol Test', dstar_protocol_test)
   test('D-STAR Modem Test',    dstar_modem_test)
 endif
+
+# DMR tests, only when DMR support is enabled
+if get_option('dmr')
+  dmr_vocoder_test = executable('dmr_vocoder_test',
+                                sources : unit_test_src + ['tests/unit/dmr_vocoder.cpp'],
+                                kwargs  : unit_test_opts)
+
+  test('DMR Vocoder Test', dmr_vocoder_test)
+endif
