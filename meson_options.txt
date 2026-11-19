@@ -2,3 +2,4 @@ option('asan', type : 'boolean', value : false, description : 'Compile the softw
 option('ubsan', type : 'boolean', value : false, description : 'Compile the software with Undefined Behaviour Sanitizer')
 option('test', type: 'string', description: 'Replace the main OpenRTX source file with a specialized test')
 option('dstar', type : 'boolean', value : false, description : 'Enable D-STAR support, with a software AMBE vocoder (mbelib-neo)')
+option('dmr', type : 'boolean', value : false, description : 'Enable DMR support, with a software AMBE+2 vocoder (mbelib-neo)')

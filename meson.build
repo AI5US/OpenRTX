@@ -136,7 +136,6 @@ endif
 # path, the same ones supporting M17.
 dstar_def = {}
 dstar_src = []
-dstar_dep = []
 if get_option('dstar')
   dstar_def = {'CONFIG_DSTAR': ''}
   dstar_src = ['openrtx/src/core/dstar_vocoder.c',
@@ -146,7 +145,22 @@ if get_option('dstar')
                'openrtx/src/protocols/DSTAR/Modulator.cpp',
                'openrtx/src/protocols/DSTAR/Demodulator.cpp',
                'openrtx/src/rtx/OpMode_DSTAR.cpp']
-  dstar_dep = [subproject('mbelib-neo').get_variable('mbelib_dep')]
+endif
+
+# DMR support, optional (meson option 'dmr'). Uses mbelib-neo for the
+# software AMBE+2 3600x2450 vocoder. Only added to targets having a baseband
+# path, the same ones supporting M17.
+dmr_def = {}
+dmr_src = []
+if get_option('dmr')
+  dmr_def = {'CONFIG_DMR': ''}
+  dmr_src = ['openrtx/src/core/dmr_vocoder.c']
+endif
+
+# mbelib-neo, the vocoder library shared by D-STAR and DMR
+mbe_dep = []
+if get_option('dstar') or get_option('dmr')
+  mbe_dep = [subproject('mbelib-neo').get_variable('mbelib_dep')]
 endif
 
 # Catch2, C++ testing framework (only for native/linux builds)
@@ -387,9 +401,9 @@ linux_def = {'PLATFORM_LINUX': '', 'VP_USE_FILESYSTEM':''}
 
 sdl_dep     = dependency('SDL2',     required: false)
 threads_dep = dependency('threads',  required: false)
-linux_src  += openrtx_src + dstar_src
+linux_src  += openrtx_src + dstar_src + dmr_src
 linux_inc  += openrtx_inc
-linux_def  += openrtx_def + dstar_def
+linux_def  += openrtx_def + dstar_def + dmr_def
 linux_def  += {'sniprintf':'snprintf', 'vsniprintf':'vsnprintf'}
 
 #
@@ -451,9 +465,9 @@ md3x0_src = ['platform/drivers/CPS/cps_io_native_MD3x0.c',
 md3x0_inc = ['platform/targets/MD-3x0']
 md3x0_def = {'PLATFORM_MD3x0': '', 'timegm': 'mktime'}
 
-md3x0_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default + mdx_src
+md3x0_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default + mdx_src
 md3x0_inc += openrtx_inc + stm32f405_inc
-md3x0_def += openrtx_def + stm32f405_def + dstar_def
+md3x0_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
 
 ##
 ## TYT MD-UV380
@@ -475,9 +489,9 @@ mduv3x0_src = ['platform/drivers/CPS/cps_io_native_MDUV3x0.c',
 mduv3x0_inc = ['platform/targets/MD-UV3x0']
 mduv3x0_def =  {'PLATFORM_MDUV3x0': '', 'timegm': 'mktime'}
 
-mduv3x0_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default + mdx_src
+mduv3x0_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default + mdx_src
 mduv3x0_inc += openrtx_inc + stm32f405_inc
-mduv3x0_def += openrtx_def + stm32f405_def + dstar_def
+mduv3x0_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
 
 ##
 ## TYT MD-9600
@@ -540,9 +554,9 @@ mod17_src = ['platform/targets/Module17/platform.c',
 mod17_inc = ['platform/targets/Module17']
 mod17_def = {'PLATFORM_MOD17': ''}
 
-mod17_src += openrtx_src + dstar_src + stm32f405_src + ui_src_module17
+mod17_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_module17
 mod17_inc += openrtx_inc + stm32f405_inc
-mod17_def += openrtx_def + stm32f405_def + dstar_def
+mod17_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
 
 ##
 ## Connect Systems CS70000
@@ -573,9 +587,9 @@ cs7000_src = ['platform/drivers/NVM/nvmem_CS7000.c',
 cs7000_inc = ['platform/targets/CS7000']
 cs7000_def = {'PLATFORM_CS7000': '', 'timegm': 'mktime'}
 
-cs7000_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default
+cs7000_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default
 cs7000_inc += openrtx_inc + stm32f405_inc
-cs7000_def += openrtx_def + stm32f405_def + dstar_def
+cs7000_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
 
 ##
 ## Connect Systems CS70000-PLUS
@@ -604,9 +618,9 @@ cs7000p_src = ['platform/drivers/NVM/nvmem_CS7000.c',
 cs7000p_inc = ['platform/targets/CS7000-PLUS']
 cs7000p_def = {'PLATFORM_CS7000P': '', 'timegm': 'mktime'}
 
-cs7000p_src += openrtx_src + dstar_src + stm32h743_src + miosix_cm7_src + ui_src_default
+cs7000p_src += openrtx_src + dstar_src + dmr_src + stm32h743_src + miosix_cm7_src + ui_src_default
 cs7000p_inc += openrtx_inc + stm32h743_inc + miosix_cm7_inc
-cs7000p_def += openrtx_def + stm32h743_def + miosix_cm7_def + dstar_def
+cs7000p_def += openrtx_def + stm32h743_def + miosix_cm7_def + dstar_def + dmr_def
 
 ##
 ## Baofeng DM-1701
@@ -626,9 +640,9 @@ dm1701_src = ['platform/targets/DM-1701/platform.c',
 dm1701_inc = ['platform/targets/DM-1701']
 dm1701_def = {'PLATFORM_DM1701': '', 'timegm': 'mktime'}
 
-dm1701_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default + mdx_src
+dm1701_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default + mdx_src
 dm1701_inc += openrtx_inc + stm32f405_inc
-dm1701_def += openrtx_def + stm32f405_def + dstar_def
+dm1701_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
 
 ##
 ## Radtel RT-4D
@@ -787,7 +801,7 @@ endforeach
 linux_opts = {
   'sources'            : linux_default_src,
   'include_directories': linux_inc,
-  'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + dstar_dep,
+  'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + mbe_dep,
   'c_args'             : linux_c_args,
   'cpp_args'           : linux_cpp_args,
   'link_args'          : linux_l_args
@@ -796,7 +810,7 @@ linux_opts = {
 linux_small_opts = {
     'sources'            : linux_default_src,
     'include_directories': linux_inc,
-    'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + dstar_dep,
+    'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + mbe_dep,
     'c_args'             : linux_small_c_args,
     'cpp_args'           : linux_small_cpp_args,
     'link_args'          : linux_l_args
@@ -805,7 +819,7 @@ linux_small_opts = {
 linux_mod17_opts = {
     'sources'            : linux_mod17_src,
     'include_directories': linux_inc,
-    'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + dstar_dep,
+    'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + mbe_dep,
     'c_args'             : linux_mod17_c_args,
     'cpp_args'           : linux_mod17_cpp_args,
     'link_args'          : linux_l_args
@@ -814,7 +828,7 @@ linux_mod17_opts = {
 md3x0_opts = {
   'sources'            : md3x0_src,
   'include_directories': md3x0_inc,
-  'dependencies'       : [codec2_dep] + dstar_dep,
+  'dependencies'       : [codec2_dep] + mbe_dep,
   'c_args'             : md3x0_args,
   'cpp_args'           : md3x0_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -823,7 +837,7 @@ md3x0_opts = {
 mduv3x0_opts = {
   'sources'            : mduv3x0_src,
   'include_directories': mduv3x0_inc,
-  'dependencies'       : [codec2_dep] + dstar_dep,
+  'dependencies'       : [codec2_dep] + mbe_dep,
   'c_args'             : mduv3x0_args,
   'cpp_args'           : mduv3x0_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -859,7 +873,7 @@ md9600_opts = {
 mod17_opts = {
   'sources'            : mod17_src,
   'include_directories': mod17_inc,
-  'dependencies'       : [codec2_dep] + dstar_dep,
+  'dependencies'       : [codec2_dep] + mbe_dep,
   'c_args'             : mod17_args,
   'cpp_args'           : mod17_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/stm32_1m+192k_rom.ld']
@@ -896,7 +910,7 @@ c62_opts = {
 cs7000_opts = {
   'sources'            : cs7000_src,
   'include_directories': cs7000_inc,
-  'dependencies'       : [codec2_dep] + dstar_dep,
+  'dependencies'       : [codec2_dep] + mbe_dep,
   'c_args'             : cs7000_args,
   'cpp_args'           : cs7000_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/stm32_1m+192k_rom.ld']
@@ -905,7 +919,7 @@ cs7000_opts = {
 cs7000p_opts = {
   'sources'            : cs7000p_src,
   'include_directories': cs7000p_inc,
-  'dependencies'       : [codec2_dep] + dstar_dep,
+  'dependencies'       : [codec2_dep] + mbe_dep,
   'c_args'             : cs7000p_args,
   'cpp_args'           : cs7000p_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32H7xx/linker_script_cs7000p.ld',
@@ -915,7 +929,7 @@ cs7000p_opts = {
 dm1701_opts = {
   'sources'            : dm1701_src,
   'include_directories': dm1701_inc,
-  'dependencies'       : [codec2_dep] + dstar_dep,
+  'dependencies'       : [codec2_dep] + mbe_dep,
   'c_args'             : dm1701_args,
   'cpp_args'           : dm1701_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -1230,7 +1244,7 @@ linux = alias_target('linux', linux_targets)
 unit_test_opts = {'c_args'             : linux_c_args,
                   'cpp_args'           : linux_cpp_args,
                   'include_directories': linux_inc,
-                  'dependencies'       : [sdl_dep, threads_dep, codec2_dep, catch2_dep] + dstar_dep,
+                  'dependencies'       : [sdl_dep, threads_dep, codec2_dep, catch2_dep] + mbe_dep,
                   'link_args'          : linux_l_args}
 
 unit_test_src = linux_src + ui_src_default
