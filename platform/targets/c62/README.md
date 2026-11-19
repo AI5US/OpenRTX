@@ -42,6 +42,7 @@ CMake options go after `--`, for example
 |---|---|---|
 | `C62_DSTAR` | `OFF` | D-STAR support, with the software AMBE vocoder of mbelib-neo (see `docs/dstar.md`) |
 | `C62_DMR` | `OFF` | DMR direct mode voice, with the software AMBE+2 vocoder of mbelib-neo (see `docs/dmr.md`) |
+| `C62_YSF` | `OFF` | Yaesu System Fusion (C4FM) V/D mode 2 voice, with the AMBE+2 vocoder of mbelib-neo (see `docs/ysf.md`) |
 
 Both fetch mbelib-neo and PFFFT with `west update --group-filter +csk6`.
 CMake remembers the options in the build directory.

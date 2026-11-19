@@ -56,16 +56,20 @@ option(C62_DSTAR "D-STAR support" OFF)
 # C62_DMR: DMR direct mode voice, with the software AMBE+2 vocoder of
 #   mbelib-neo (fetched as for C62_DSTAR).
 option(C62_DMR "DMR support" OFF)
+# C62_YSF: Yaesu System Fusion (C4FM) V/D mode 2 voice, with the AMBE+2
+#   vocoder of mbelib-neo (fetched as for C62_DSTAR).
+option(C62_YSF "YSF support" OFF)
 
-# mbelib-neo, the vocoder library shared by D-STAR and DMR
-if(C62_DSTAR OR C62_DMR)
+# mbelib-neo, the vocoder library shared by D-STAR, DMR and YSF
+if(C62_DSTAR OR C62_DMR OR C62_YSF)
   set(C62_MBELIB ${WEST_TOPDIR}/modules/lib/mbelib-neo)
   set(C62_PFFFT ${WEST_TOPDIR}/modules/lib/pffft)
   if(NOT EXISTS ${C62_MBELIB}/src/ambe/ambe3600x2400_enc.c
      OR NOT EXISTS ${C62_PFFFT}/src/pffft.c)
     message(FATAL_ERROR "mbelib-neo or PFFFT not found in ${WEST_TOPDIR}/"
                         "modules/lib: run 'west update --group-filter +csk6', "
-                        "or build with -DC62_DSTAR=OFF -DC62_DMR=OFF")
+                        "or build with -DC62_DSTAR=OFF -DC62_DMR=OFF "
+                        "-DC62_YSF=OFF")
   endif()
 
   # mbelib-neo's own build downloads PFFFT, build the sources here instead.
@@ -167,7 +171,25 @@ if(C62_DMR)
   target_compile_definitions(app PRIVATE CONFIG_DMR)
 endif()
 
-message(STATUS "C62: D-STAR ${C62_DSTAR}, DMR ${C62_DMR}")
+# YSF shares the AMBE+2 vocoder and the 4FSK modulator with DMR
+if(C62_YSF)
+  target_sources(app PRIVATE
+    ${OPENRTX_ROOT}/openrtx/src/protocols/YSF/Bits.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/YSF/Convolution.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/YSF/Fich.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/YSF/Payload.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/YSF/Voice.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/YSF/Demodulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/rtx/OpMode_YSF.cpp)
+  if(NOT C62_DMR)
+    target_sources(app PRIVATE
+      ${OPENRTX_ROOT}/openrtx/src/core/dmr_vocoder.c
+      ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Modulator.cpp)
+  endif()
+  target_compile_definitions(app PRIVATE CONFIG_YSF)
+endif()
+
+message(STATUS "C62: D-STAR ${C62_DSTAR}, DMR ${C62_DMR}, YSF ${C62_YSF}")
 
 #
 # DSP firmware, flashed separately at 0x100000 (dsp_firmware partition). The
