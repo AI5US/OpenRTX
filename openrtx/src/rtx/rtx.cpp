@@ -144,27 +144,33 @@ void rtx_task()
          */
         if(currMode->getID() != rtxStatus.opMode)
         {
-            // Forward opMode change also to radio driver
-            radio_setOpmode(static_cast< enum opmode >(rtxStatus.opMode));
-
-            currMode->disable();
-            rtxStatus.opStatus = OFF;
+            OpMode *newMode;
 
             switch(rtxStatus.opMode)
             {
-                case OPMODE_NONE: currMode = &noMode;  break;
-                case OPMODE_FM:   currMode = &fmMode;  break;
+                case OPMODE_NONE: newMode = &noMode;  break;
+                case OPMODE_FM:   newMode = &fmMode;  break;
                 #ifdef CONFIG_M17
-                case OPMODE_M17:  currMode = &m17Mode; break;
+                case OPMODE_M17:  newMode = &m17Mode; break;
                 #endif
                 #ifdef CONFIG_DSTAR
-                case OPMODE_DSTAR: currMode = &dstarMode; break;
+                case OPMODE_DSTAR: newMode = &dstarMode; break;
                 #endif
                 #ifdef CONFIG_DMR
-                case OPMODE_DMR:   currMode = &dmrMode;   break;
+                case OPMODE_DMR:   newMode = &dmrMode;   break;
                 #endif
-                default:   currMode = &noMode;
+                default:   newMode = &noMode;
             }
+
+            // Forward opMode change also to radio driver. A mode without
+            // handler in this build (e.g. a DMR channel from a vendor
+            // codeplug without DMR support) must not switch the radio to
+            // its signal path: the radio would be deaf.
+            radio_setOpmode(newMode->getID());
+
+            currMode->disable();
+            rtxStatus.opStatus = OFF;
+            currMode = newMode;
 
             currMode->enable();
         }
