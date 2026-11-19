@@ -162,6 +162,23 @@ public:
     void sendFrame(const uint8_t *burst);
 
     /**
+     * \brief Transmit a burst followed by an unmodulated carrier in the
+     * other timeslot: 60 ms, the TDMA frame of a radio talking through a
+     * repeater, which must leave the other timeslot to other radios.
+     *
+     * @param burst: BURST_BYTES bytes.
+     */
+    void sendSlot(const uint8_t *burst);
+
+    /**
+     * \brief Transmit an unmodulated carrier, e.g. to place the next burst
+     * in time.
+     *
+     * @param numSymbols: duration, in symbols.
+     */
+    void sendCarrier(size_t numSymbols);
+
+    /**
      * \brief Transmit the preamble.
      *
      * @param numBytes: number of PREAMBLE_BYTE to be sent.

@@ -204,6 +204,18 @@ void Modulator::sendFrame(const uint8_t *burst)
     send(IDLE_FILL, IDLE_FILL_BYTES);
 }
 
+void Modulator::sendSlot(const uint8_t *burst)
+{
+    send(burst, BURST_BYTES);
+    sendCarrier(FRAME_SYMBOLS - BURST_SYMBOLS);
+}
+
+void Modulator::sendCarrier(size_t numSymbols)
+{
+    for (size_t i = 0; i < numSymbols; i++)
+        pushSymbol(-1);
+}
+
 void Modulator::sendPreamble(size_t numBytes)
 {
     for (size_t i = 0; i < numBytes; i++)
