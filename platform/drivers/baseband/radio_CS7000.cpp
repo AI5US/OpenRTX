@@ -224,6 +224,9 @@ void radio_setOpmode(const enum opmode mode)
             C6000.setInputGain(+3);     // Input gain in dB, as per TYT firmware
             break;
 
+#ifdef CONFIG_DMR
+        case OPMODE_DMR:
+#endif
         case OPMODE_DSTAR:
 
         case OPMODE_M17:
@@ -342,6 +345,9 @@ void radio_enableTx()
         }
             break;
 
+#ifdef CONFIG_DMR
+        case OPMODE_DMR:
+#endif
         case OPMODE_DSTAR:
 
         case OPMODE_M17:

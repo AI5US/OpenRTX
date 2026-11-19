@@ -160,11 +160,14 @@ void radio_setOpmode(const enum opmode mode)
             break;
 
         case OPMODE_DMR:
+#ifndef CONFIG_DMR
             gpio_clearPin(FM_SW);       // Disable analog RX stage after superhet
             gpio_setPin(DMR_SW);        // Enable analog paths for DMR
             _setBandwidth(BW_12_5);     // Set bandwidth to 12.5kHz
             //C5000_dmrMode();
             break;
+#endif
+            // Software DMR uses the M17 baseband path
 
         case OPMODE_DSTAR:
 
@@ -266,6 +269,9 @@ void radio_enableTx()
         }
             break;
 
+#ifdef CONFIG_DMR
+        case OPMODE_DMR:
+#endif
         case OPMODE_DSTAR:
 
         case OPMODE_M17:

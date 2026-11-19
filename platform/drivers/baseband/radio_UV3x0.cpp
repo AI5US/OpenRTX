@@ -101,10 +101,13 @@ void radio_setOpmode(const enum opmode mode)
             break;
 
         case OPMODE_DMR:
+#ifndef CONFIG_DMR
             at1846s.setOpMode(AT1846S_OpMode::DMR);
             at1846s.setBandwidth(AT1846S_BW::_12P5);
 //             C6000.dmrMode();
             break;
+#endif
+            // Software DMR uses the M17 baseband path
 
         case OPMODE_DSTAR:
 
@@ -205,6 +208,9 @@ void radio_enableTx()
         }
             break;
 
+#ifdef CONFIG_DMR
+        case OPMODE_DMR:
+#endif
         case OPMODE_DSTAR:
 
         case OPMODE_M17:
