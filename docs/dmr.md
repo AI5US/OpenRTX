@@ -6,10 +6,12 @@
 
 # DMR in OpenRTX
 
-Status: DMR direct mode (DMO) voice, implemented behind the `dmr` meson
-option and the `C62_DMR` CMake option. Tested on air on the Retevis C62,
-both ways with a DMR radio in direct mode (see below); not yet tested on the
-other radios.
+Status: DMR voice in direct mode (DMO) and through repeaters, implemented
+behind the `dmr` meson option and the `C62_DMR` CMake option. Direct mode
+is tested on air on the Retevis C62, both ways with a DMR radio (see below);
+repeater mode is checked on the bench only, against off-air recordings, and
+waits for a test with a repeater (see [Repeater mode](#repeater-mode)). Not
+yet tested on the other radios.
 
 ## Scope
 
@@ -19,18 +21,23 @@ Supported:
   24 bit source and destination IDs;
 - reception from the voice LC header or, joining late, from the embedded
   link control of voice bursts B to E;
-- interoperability targets: radios in direct mode (talkaround) and MMDVM
-  hotspots in simplex mode.
+- Tier II repeater voice: reception of the selected timeslot of a repeater
+  downlink, transmission in the same timeslot of the uplink, repeater
+  wake-up;
+- interoperability targets: radios in direct mode (talkaround), MMDVM
+  hotspots in simplex and duplex mode, repeaters.
+
+A direct mode transmission is continuous: one timeslot carries the bursts,
+the other one the idle pattern (as MMDVM's DMO transmitter does), so the
+radio never has to key its transmitter on and off every 30 ms. Through a
+repeater the radio must leave the other timeslot free, see below.
 
 Not supported:
 
-- repeater operation: TDMA slot synchronisation to a repeater downlink and
-  burst transmission in a given slot. A direct mode transmission here is
-  continuous: one timeslot carries the bursts, the other one the idle
-  pattern (as MMDVM's DMO transmitter does), so the radio never has to key
-  its transmitter on and off every 30 ms;
-- data, SMS, CSBK, privacy, talker alias, GPS. The channel timeslot is not
-  used in direct mode;
+- data, SMS, privacy, talker alias, GPS; CSBKs other than the repeater
+  wake-up;
+- channel access rules: a transmission does not wait for the timeslot to be
+  free;
 - the DMR chips of the MD-3x0, MD-UV3x0 and GD-77 families (HR_C5000,
   HR_C6000): DMR runs in software on the M17 baseband path instead.
 
@@ -44,10 +51,11 @@ Not supported:
 | Burst fields: sync, slot type, EMB, voice frames | `protocols/DMR/Burst.*` |
 | Full and embedded link control | `protocols/DMR/Lc.*` |
 | Call level encoder and decoder | `protocols/DMR/Voice.*` |
+| Repeater signalling: CACH, BS activation CSBK | `protocols/DMR/Cach.*`, `Csbk.*` |
 | 4FSK modem | `protocols/DMR/Modulator.*`, `Demodulator.*` |
 | Operating mode | `rtx/OpMode_DMR.*`, `OPMODE_DMR` |
-| Radio drivers | DMR uses the M17 baseband configuration |
-| UI | mode `DMR` (macro 5), caller and destination display, Settings > DMR (ID, destination, call type, colour code) |
+| Radio drivers | DMR uses the M17 baseband configuration; `radio_setPa()` keys the PA around repeater bursts (`CONFIG_RADIO_PA_KEYING`) |
+| UI | mode `DMR` (macro 5), caller and destination display, Settings > DMR (ID, destination, call type, colour code, timeslot, TX timing) |
 
 Layer 2 is ported from MMDVMHost and the modem from MMDVM (G4KLX,
 GPL-2.0-or-later). The DMR interleave of the AMBE+2 frames comes from DSD
@@ -68,6 +76,13 @@ builds keep their settings layout.
   the macro menu use the settings.
 - **Reception:** calls with the receive colour code only; the main screen
   shows the caller and the talkgroup or called ID.
+- **Direct or repeater mode:** repeater mode when the transmit and receive
+  frequencies differ, direct mode otherwise.
+- **Timeslot (repeater mode):** from the channel when it is a codeplug DMR
+  channel with a DMR contact, otherwise Settings > DMR > Timeslot.
+- **TX timing (repeater mode):** Settings > DMR > TX timing, in symbols
+  (208 us), positive to transmit earlier. A trim on top of the target's
+  calibration, 0 by default.
 
 ### Modem
 
@@ -119,6 +134,112 @@ What it took, worth knowing for other radios:
 
 Still to verify on air: the other radios (deviation, phase, RAM: the MD-3x0
 may not have room for the 48 KB codec stack), MMDVM simplex hotspots.
+
+## Repeater mode
+
+### How it works
+
+- **Reception.** The receiver looks for the base station syncs, follows a
+  burst every 30 ms and reads the timeslot of each one from the TACT of the
+  CACH before it (Hamming (7,4), one error corrected). As two errors go
+  undetected, the timeslot must alternate: a single mismatch is overruled,
+  two in a row are believed. Only the selected timeslot is decoded and
+  played back. Each burst carries its receiver sample index, which the
+  OpMode turns into system time with a running estimate of the offset
+  between sample count and system tick (lowest offset seen, which has the
+  shortest input latency, rising slowly to follow the drift of the clocks).
+- **Uplink timing.** As in MMDVM (`DMRTX.cpp createCACH`), the inbound
+  timeslot n starts when the downlink burst of timeslot n ends; the uplink
+  burst starts 1.25 ms later, after the guard time. The radio is half
+  duplex, so the timing comes from the last downlink burst heard before the
+  transmission (at most 1 s old) and holds through it on the radio's clock:
+  at 50 ppm a minute long transmission drifts by 3 ms, inside the 18 symbol
+  window of MMDVM.
+- **Wake-up.** With no downlink in the last second, the radio sends two BS
+  activation CSBKs (opcode 0x38, MS data sync, CRC mask A5A5), listens
+  500 ms for the downlink, and tries three times before giving up until the
+  PTT is released.
+- **Transmission.** Voice LC headers, superframes and terminator as in
+  direct mode, with MS syncs, one burst every 60 ms in the selected
+  timeslot (`Modulator::sendSlot()`).
+- **PA keying.** On the targets defining `CONFIG_RADIO_PA_KEYING` (the C62)
+  the PA is on only around the bursts, 5 symbols (about 1 ms) before and
+  after each one; the others send carrier through the other timeslot, which
+  blocks the users of that timeslot on a shared repeater. The switching is
+  done by the transmitting thread itself, from a modulator callback that
+  runs for each 20 ms block of baseband while it plays, once the next block
+  is ready: it can sleep until a switching instant inside the block without
+  starving the output stream, it follows the output samples rather than a
+  separate clock, and it costs no thread (the C62 has all of its 5 POSIX
+  threads in use). The same schedule would be the place to switch to
+  reception between the bursts, see below.
+- **PTT.** A transmission ends on two released PTT readings in a row, one
+  per burst: on the C62, with the PA keyed, single false readings ended
+  transmissions after a few seconds.
+
+### Calibration
+
+Two delays of the radio itself place the uplink bursts; the repeater's own
+timing is followed from the downlink.
+
+| Delay | Where | C62 |
+|---|---|---|
+| Baseband output stream to antenna (beyond the 20 ms block of silence the stream starts with) | `CONFIG_BASEBAND_TX_DELAY_US` in the target's `hwconfig.h`; places the PA keying and the bursts | 26.5 ms, the DSP buffering: measured off air, see below |
+| Antenna to receiver sample count | TX timing setting, for now | not measured |
+
+The receive delay can only be measured against a downlink: record a duplex
+hotspot or repeater downlink and the radio's uplink in one RTL-SDR capture
+(TX and RX frequencies less than about 0.9 MHz apart at 960 kS/s), and
+compare where the uplink bursts start with the end of the downlink bursts of
+the same timeslot (target: 6 symbols later). Once measured it should become
+a target constant as well, with the setting left as a trim.
+
+### Bench test on the Retevis C62
+
+Without a repeater, checked with RTL-SDR recordings demodulated and decoded
+offline, using a test build that transmits after unanswered wake-ups:
+
+- the wake-up CSBKs decode with a valid CRC, opcode, source ID and colour
+  code, three attempts about 0.75 s apart;
+- voice header, 60 ms spaced voice bursts and terminator decode, 0.12
+  corrected bit errors per AMBE+2 frame, under 0.5% of frames with more than
+  3 errors, with the PA keyed;
+- with carrier fill each 60 ms holds 28 ms of modulation; with the PA keyed
+  the PA is on for 29 to 30 ms every 60 ms. With no output delay set the PA
+  windows fell exactly between the bursts: the baseband reaches the antenna
+  about 27 ms after the stream plays it. Measured from the position of the
+  bursts inside the windows, the delay is now set to 26.5 ms; the last
+  recording, at 27.5 ms, had the windows open about 0.9 ms late.
+
+The PA switching follows the system tick, 1 ms, which gives the windows a
+jitter of about +/-1 ms: hence the 1 ms margins, against 1.25 ms of guard
+time.
+
+### Open items
+
+- **Test with a duplex MMDVM hotspot or a repeater:** acceptance of the
+  uplink bursts and of the wake-up, playback of a timeslot, and the
+  receive delay calibration above.
+- **Microphone level:** listeners report DMR transmissions from the C62 as
+  too loud. Off air the decoded speech measured -38 dBFS RMS and -17 dBFS
+  peak with mbelib-neo, which is unity gain from encoder to decoder; but
+  listeners decode with DVSI vocoders, and the C62's software microphone
+  gain (`CONFIG_MIC_GAIN`, 13) was set for Codec2 and applies to the AMBE
+  encoders as well. mbelib-neo scales its AMBE+2 encoder to DVSI's level
+  (`AMBE2450_ENC_MAG_SCALE`); the fix is probably a separate encode gain
+  for the AMBE codecs, measured against a DVSI decoder.
+- **PTT readings:** whether the two reading confirmation is enough; the
+  last keyed bench transmission still ended after 5.9 s, which may have
+  been the release.
+- **Reception between the bursts:** while transmitting, the downlink burst
+  of the radio's own timeslot (the repeater relaying it) arrives while the
+  radio is idle. Receiving it would keep the timing through long
+  transmissions and show the repeater's state; it needs the BK4819 to
+  retune between the TX and RX frequencies within the guard time (the
+  driver waits 5 ms now) and the C62 to run baseband input and output at
+  the same time.
+- **Channel access:** wait for the timeslot to be free (CACH AT bit, or no
+  call on the downlink) before transmitting.
 
 ## The vocoder
 
