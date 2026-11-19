@@ -10,16 +10,20 @@
 
 using namespace DMR;
 
-VoiceEncoder::VoiceEncoder() : lc(), colorCode(0), voiceIndex(0)
+VoiceEncoder::VoiceEncoder()
+    : lc(), colorCode(0), voiceIndex(0), voiceSync(MS_VOICE_SYNC),
+      dataSync(MS_DATA_SYNC)
 {
 }
 
-void VoiceEncoder::start(const Lc &lc, uint8_t colorCode)
+void VoiceEncoder::start(const Lc &lc, uint8_t colorCode, bool bsSourced)
 {
     this->lc = lc;
     this->colorCode = colorCode & 0x0F;
     embedded.setLc(lc);
     voiceIndex = 0;
+    voiceSync = bsSourced ? BS_VOICE_SYNC : MS_VOICE_SYNC;
+    dataSync = bsSourced ? BS_DATA_SYNC : MS_DATA_SYNC;
 }
 
 void VoiceEncoder::header(uint8_t *burst) const
@@ -27,7 +31,7 @@ void VoiceEncoder::header(uint8_t *burst) const
     memset(burst, 0x00, BURST_BYTES);
     encodeFullLc(lc, DT_VOICE_LC_HEADER, burst);
     encodeSlotType(burst, colorCode, DT_VOICE_LC_HEADER);
-    setSync(burst, MS_DATA_SYNC);
+    setSync(burst, dataSync);
 }
 
 void VoiceEncoder::voice(const uint8_t frames[VOICE_FRAMES][VOICE_FRAME_BYTES],
@@ -37,7 +41,7 @@ void VoiceEncoder::voice(const uint8_t frames[VOICE_FRAMES][VOICE_FRAME_BYTES],
     setVoiceFrames(burst, frames);
 
     if (voiceIndex == 0) {
-        setSync(burst, MS_VOICE_SYNC);
+        setSync(burst, voiceSync);
     } else if (voiceIndex <= EmbeddedLcEncoder::FRAGMENTS) {
         uint8_t data[4];
         uint8_t lcss = embedded.getFragment(voiceIndex - 1, data);
@@ -60,7 +64,7 @@ void VoiceEncoder::terminator(uint8_t *burst) const
     memset(burst, 0x00, BURST_BYTES);
     encodeFullLc(lc, DT_TERMINATOR_WITH_LC, burst);
     encodeSlotType(burst, colorCode, DT_TERMINATOR_WITH_LC);
-    setSync(burst, MS_DATA_SYNC);
+    setSync(burst, dataSync);
 }
 
 VoiceDecoder::VoiceDecoder() : callLc(), colorCode(0)

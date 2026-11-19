@@ -42,8 +42,10 @@ public:
      *
      * @param lc: link control of the call.
      * @param colorCode: colour code, 0 to 15.
+     * @param bsSourced: use the base station syncs, as a repeater does,
+     * instead of the mobile station ones.
      */
-    void start(const Lc &lc, uint8_t colorCode);
+    void start(const Lc &lc, uint8_t colorCode, bool bsSourced = false);
 
     /**
      * \brief Build a voice LC header burst.
@@ -85,6 +87,8 @@ private:
     EmbeddedLcEncoder embedded; ///< Fragments of the embedded LC
     uint8_t colorCode;          ///< Colour code
     uint8_t voiceIndex;         ///< Next voice burst, 0 (A) to 5 (F)
+    uint64_t voiceSync;         ///< Sync pattern of voice bursts A
+    uint64_t dataSync;          ///< Sync pattern of data bursts
 };
 
 /**
