@@ -1198,6 +1198,13 @@ int _ui_getDmrValueName(char *buf, uint8_t max_len, uint8_t index)
         case DMR_SET_CC:
             sniprintf(buf, max_len, "%u", last_state.settings.dmr_cc);
             break;
+        case DMR_SET_SLOT:
+            sniprintf(buf, max_len, "TS%u", last_state.settings.dmr_slot + 1);
+            break;
+        case DMR_SET_TIMING:
+            sniprintf(buf, max_len, "%+d sym",
+                      last_state.settings.dmr_tx_timing);
+            break;
         default:
             return -1;
     }

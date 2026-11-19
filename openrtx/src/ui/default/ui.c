@@ -199,12 +199,17 @@ const char *settings_dstar_items[] =
 #endif
 
 #ifdef CONFIG_DMR
+// Repeater TX timing range, in symbols: half a timeslot either way
+static const int8_t DMR_TIMING_MAX = 72;
+
 const char *settings_dmr_items[] =
 {
     "DMR ID",
     "Destination",
     "Call type",
-    "Color code"
+    "Color code",
+    "Timeslot",
+    "TX timing"
 };
 #endif
 
@@ -2756,6 +2761,33 @@ void ui_updateFSM(bool *sync_rtx)
                                     msg.keys & KNOB_RIGHT)
                                 state.settings.dmr_cc =
                                     (state.settings.dmr_cc + 1) % 16;
+                            else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
+
+                        case DMR_SET_SLOT:
+                            if(msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT ||
+                               msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT ||
+                               msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                state.settings.dmr_slot =
+                                    !state.settings.dmr_slot;
+                            }
+                            else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
+
+                        case DMR_SET_TIMING:
+                            if((msg.keys & KEY_DOWN || msg.keys & KEY_LEFT ||
+                                msg.keys & KNOB_LEFT) &&
+                               (state.settings.dmr_tx_timing > -DMR_TIMING_MAX))
+                                state.settings.dmr_tx_timing--;
+                            else if((msg.keys & KEY_UP ||
+                                     msg.keys & KEY_RIGHT ||
+                                     msg.keys & KNOB_RIGHT) &&
+                                    (state.settings.dmr_tx_timing <
+                                     DMR_TIMING_MAX))
+                                state.settings.dmr_tx_timing++;
                             else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
                                 ui_state.edit_mode = false;
                             break;

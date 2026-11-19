@@ -171,7 +171,9 @@ enum settingsDmrItems
     DMR_SET_ID = 0,
     DMR_SET_DEST,
     DMR_SET_CALL,
-    DMR_SET_CC
+    DMR_SET_CC,
+    DMR_SET_SLOT,
+    DMR_SET_TIMING
 };
 
 enum settingsFMItems
