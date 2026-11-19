@@ -1293,6 +1293,10 @@ dsp_oversampling_test = executable('dsp_oversampling_test',
                                     sources : unit_test_src + ['tests/unit/dsp_oversampling.cpp'],
                                     kwargs  : unit_test_opts)
 
+dsp_voice_band_test = executable('dsp_voice_band_test',
+                                  sources : unit_test_src + ['tests/unit/dsp_voice_band.cpp'],
+                                  kwargs  : unit_test_opts)
+
 gfx_text_test = executable('gfx_text_test',
                             sources : unit_test_src + ['tests/unit/gfx_text.cpp'],
                             kwargs  : unit_test_opts)
