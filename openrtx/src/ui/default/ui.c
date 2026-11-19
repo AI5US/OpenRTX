@@ -2576,12 +2576,11 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                     else if(input_isCharPressed(msg))
                     {
-                        // Free text: callsign fields may hold spaces before
-                        // the module letter. The radio callsign is entered
-                        // as in the M17 settings.
+                        // Callsigns in upper case, the space before a module
+                        // letter is on key 0; the message is free text.
                         _ui_textInputKeypad(ui_state.new_meta_text, maxLen,
                                             msg, ui_state.menu_selected
-                                                     == DSTAR_MY);
+                                                     != DSTAR_MESSAGE);
                     }
                 }
                 else
