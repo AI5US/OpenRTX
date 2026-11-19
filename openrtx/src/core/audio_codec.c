@@ -171,6 +171,15 @@ bool codec_queueEmpty(const pathId path)
     return numElements == 0;
 }
 
+uint8_t codec_queuedFrames()
+{
+    pthread_mutex_lock(&data_mutex);
+    uint8_t count = numElements;
+    pthread_mutex_unlock(&data_mutex);
+
+    return count;
+}
+
 int codec_popFrame(uint8_t *frame, const bool blocking)
 {
     if (running == false)

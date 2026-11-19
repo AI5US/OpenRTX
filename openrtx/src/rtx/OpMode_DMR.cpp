@@ -269,6 +269,19 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
         voiceEnc.header(burst);
         for (size_t i = 0; i < TX_HEADERS; i++)
             modulator.sendFrame(burst);
+
+        // A voice burst needs three frames of speech, and only one block of
+        // baseband is buffered while waiting for them: should a frame come
+        // late, the output stream would replay a block and shift all the
+        // following bursts. Keep sending headers, which also keeps the
+        // output going, until frames to spare are queued.
+        for (size_t i = 0; i < TX_PREFILL_MAX_HEADERS; i++) {
+            if ((codec_running() == false)
+                || (codec_queuedFrames() >= TX_PREFILL_FRAMES))
+                break;
+
+            modulator.sendFrame(burst);
+        }
     }
 
     // Wait for 60 ms of encoded speech. If the encoder is not running (e.g.

@@ -107,6 +107,13 @@ bool codec_running();
 bool codec_queueEmpty(const pathId path);
 
 /**
+ * Get the number of compressed audio frames waiting in the internal queue.
+ *
+ * @return number of queued frames.
+ */
+uint8_t codec_queuedFrames();
+
+/**
  * Get a compressed audio frame from the internal queue. Each frame is composed
  * of 8 bytes for Codec2 3200 or 9 bytes for D-STAR AMBE and DMR AMBE+2.
  *

@@ -71,6 +71,13 @@ private:
     /// Voice LC headers sent at the start of a transmission
     static constexpr size_t TX_HEADERS = 2;
 
+    /// Encoded frames queued before the first voice burst: three for the
+    /// burst, two to spare
+    static constexpr uint8_t TX_PREFILL_FRAMES = 5;
+
+    /// Most headers sent while waiting for the frames, 600 ms
+    static constexpr size_t TX_PREFILL_MAX_HEADERS = 10;
+
     bool startRx;       ///< Start reception
     bool startTx;       ///< Start transmission
     bool invertTxPhase; ///< TX signal phase inversion
