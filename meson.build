@@ -1384,5 +1384,10 @@ if get_option('dmr')
                                 sources : unit_test_src + ['tests/unit/dmr_vocoder.cpp'],
                                 kwargs  : unit_test_opts)
 
+  dmr_protocol_test = executable('dmr_protocol_test',
+                                 sources : unit_test_src + ['tests/unit/dmr_protocol.cpp'],
+                                 kwargs  : unit_test_opts)
+
   test('DMR Vocoder Test', dmr_vocoder_test)
+  test('DMR Protocol Test', dmr_protocol_test)
 endif
