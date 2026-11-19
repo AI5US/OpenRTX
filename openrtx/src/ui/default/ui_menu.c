@@ -1088,6 +1088,42 @@ int _ui_getDStarValueName(char *buf, uint8_t max_len, uint8_t index)
     return 0;
 }
 
+/*
+ * Help shown while editing a D-STAR setting, by enum settingsDStarItems
+ */
+static const char *dstarHints[] = {
+    "Your callsign",
+    "CQCQCQ or callsign",
+    "Rptr+mod: DB0ABC_B",
+    "Gateway: DB0ABC_G",
+    "Up to 20 chars",
+};
+
+/*
+ * D-STAR callsigns are 8 characters, the module letter last: show all the
+ * positions, typed spaces as '_' and free positions as '.'.
+ */
+static void dstarCallsignTemplate(const char *typed, char *out)
+{
+    static const size_t CALLSIGN_LEN = 8;
+    bool end = false;
+
+    for (size_t i = 0; i < CALLSIGN_LEN; i++) {
+        // Text input starts from a lone '_': nothing typed yet
+        if ((typed[i] == '\0') || ((i == 0) && (typed[0] == '_')))
+            end = true;
+
+        if (end)
+            out[i] = '.';
+        else if (typed[i] == ' ')
+            out[i] = '_';
+        else
+            out[i] = typed[i];
+    }
+
+    out[CALLSIGN_LEN] = '\0';
+}
+
 void _ui_drawSettingsDStar(ui_state_t *ui_state)
 {
     gfx_clearScreen();
@@ -1113,9 +1149,21 @@ void _ui_drawSettingsDStar(ui_state_t *ui_state)
                       TEXT_ALIGN_LEFT, color_white,
                       settings_dstar_items[ui_state->menu_selected]);
     gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+
+    const char *text = ui_state->new_meta_text;
+    char callsign[9];
+    if (ui_state->menu_selected != DSTAR_MESSAGE) {
+        dstarCallsignTemplate(ui_state->new_meta_text, callsign);
+        text = callsign;
+    }
+
     gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                   layout.horizontal_pad, layout.input_font, TEXT_ALIGN_CENTER,
-                  color_white, ui_state->new_meta_text);
+                  color_white, text);
+
+    if (ui_state->menu_selected < ARRAY_SIZE(dstarHints))
+        gfx_print(layout.bottom_pos, layout.bottom_font, TEXT_ALIGN_CENTER,
+                  color_white, dstarHints[ui_state->menu_selected]);
 }
 #endif
 
