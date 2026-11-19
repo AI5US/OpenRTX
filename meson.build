@@ -1426,3 +1426,17 @@ if get_option('dmr')
   test('DMR Modem Test',    dmr_modem_test)
   test('DMR Repeater Test', dmr_repeater_test)
 endif
+
+# YSF tests, only when YSF support is enabled
+if get_option('ysf')
+  ysf_protocol_test = executable('ysf_protocol_test',
+                                 sources : unit_test_src + ['tests/unit/ysf_protocol.cpp'],
+                                 kwargs  : unit_test_opts)
+
+  ysf_modem_test = executable('ysf_modem_test',
+                              sources : unit_test_src + ['tests/unit/ysf_modem.cpp'],
+                              kwargs  : unit_test_opts)
+
+  test('YSF Protocol Test', ysf_protocol_test)
+  test('YSF Modem Test',    ysf_modem_test)
+endif
