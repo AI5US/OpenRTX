@@ -201,15 +201,25 @@ void bk4819_set_modulation(const struct BK4819 *dev, bool is_FM)
     BK4819_SetAF(dev, is_FM ? BK4819_AF_TYPE_FM : BK4819_AF_TYPE_AM);
 }
 
+/* Transmit sections enabled in REG30, except the PA driver */
+static const uint16_t REG30_TX =
+    BK4819_REG30_REVERSE1_ENABLE | BK4819_REG30_REVERSE2_ENABLE
+    | BK4819_REG30_VCO_CALIBRATION | BK4819_REG30_MIC_ADC_ENABLE
+    | BK4819_REG30_TX_DSP_ENABLE | BK4819_REG30_PLL_VCO_ENABLE;
+
 void bk4819_tx_on(const struct BK4819 *dev)
 {
     BK4819_writeReg(dev, BK4819_REG_30, 0x00); /* reset */
-    BK4819_writeReg(
-        dev, BK4819_REG_30,
-        BK4819_REG30_REVERSE1_ENABLE | BK4819_REG30_REVERSE2_ENABLE
-            | BK4819_REG30_VCO_CALIBRATION | BK4819_REG30_MIC_ADC_ENABLE
-            | BK4819_REG30_TX_DSP_ENABLE | BK4819_REG30_PLL_VCO_ENABLE
-            | BK4819_REG30_PA_GAIN_ENABLE);
+    BK4819_writeReg(dev, BK4819_REG_30, REG30_TX | BK4819_REG30_PA_GAIN_ENABLE);
+}
+
+void bk4819_setPa(const struct BK4819 *dev, bool enable)
+{
+    uint16_t value = REG30_TX;
+    if (enable)
+        value |= BK4819_REG30_PA_GAIN_ENABLE;
+
+    BK4819_writeReg(dev, BK4819_REG_30, value);
 }
 
 void bk4819_rtx_off(const struct BK4819 *dev)

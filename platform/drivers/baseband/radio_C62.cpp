@@ -50,7 +50,7 @@ static struct C62Calib calData; // TX power calibration
 static bool basebandMode(enum opmode mode)
 {
     return (mode == OPMODE_M17) || (mode == OPMODE_DSTAR)
-           || (mode == OPMODE_DMR);
+        || (mode == OPMODE_DMR);
 }
 
 /* The BK4819 GPIOs to control the C62 LNA and PA */
@@ -250,6 +250,22 @@ void radio_disableRtx()
 
     bk4819_rtx_off(&c62_bk4819);
     radioStatus = OFF;
+}
+
+void radio_setPa(bool enable)
+{
+    uint8_t txPa = GPIO_UHF_TX_PA;
+    if (config->txFrequency < 174000000)
+        txPa = GPIO_VHF_TX_PA;
+
+    // Driver before amplifier when switching on, the reverse when off
+    if (enable) {
+        bk4819_setPa(&c62_bk4819, true);
+        gpioDev_set(&c62_bk4819_gpio, txPa);
+    } else {
+        gpioDev_clear(&c62_bk4819_gpio, txPa);
+        bk4819_setPa(&c62_bk4819, false);
+    }
 }
 
 void radio_updateConfiguration()

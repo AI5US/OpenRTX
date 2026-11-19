@@ -84,6 +84,17 @@ void radio_enableTx();
 void radio_disableRtx();
 
 /**
+ * Switch the transmitter power amplifier off and back on while transmitting,
+ * leaving the synthesiser and the modulation path running, for protocols
+ * transmitting in a timeslot. Provided by the targets defining
+ * CONFIG_RADIO_PA_KEYING. Call only between radio_enableTx() and
+ * radio_disableRtx().
+ *
+ * @param enable: true to switch the amplifier on.
+ */
+void radio_setPa(bool enable);
+
+/**
  * Update configuration of the radio module to match the one currently described
  * by the rtxStatus_t configuration data structure.
  * This function has to be called whenever the configuration data structure has

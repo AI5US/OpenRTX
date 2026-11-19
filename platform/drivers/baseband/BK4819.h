@@ -352,6 +352,15 @@ void bk4819_set_modulation(const struct BK4819 *dev, bool is_FM);
 void bk4819_tx_on(const struct BK4819 *dev);
 
 /**
+ * Switch the PA driver stage on or off while transmitting, leaving the PLL
+ * and the TX DSP running.
+ *
+ * @param dev: pointer to device data.
+ * @param enable: true to switch the PA driver on.
+ */
+void bk4819_setPa(const struct BK4819 *dev, bool enable);
+
+/**
  * @brief Disable Rx and Tx
  *
  * @param dev: pointer to device data.
