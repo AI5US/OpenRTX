@@ -30,6 +30,11 @@ static bool _ui_callShown(void)
     if ((dstarStatus.opMode == OPMODE_DSTAR) && dstarStatus.dstarHeaderOk)
         return true;
 #endif
+#ifdef CONFIG_DMR
+    rtxStatus_t dmrStatus = rtx_getCurrentStatus();
+    if ((dmrStatus.opMode == OPMODE_DMR) && dmrStatus.dmrLcOk)
+        return true;
+#endif
     return false;
 }
 
@@ -175,6 +180,39 @@ static void _ui_drawDStarInfo(ui_state_t *ui_state)
 }
 #endif
 
+#ifdef CONFIG_DMR
+/**
+ * DMR mode information: the received call or, when no call is received,
+ * the destination and colour code used for transmission.
+ */
+static void _ui_drawDmrInfo(void)
+{
+    rtxStatus_t rtxStatus = rtx_getCurrentStatus();
+
+    if (rtxStatus.dmrLcOk == false) {
+        gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  color_white, "%s %lu CC%u",
+                  rtxStatus.dmrPrivateCall ? "ID" : "TG",
+                  (unsigned long)rtxStatus.dmrDstId,
+                  rtxStatus.dmrTxColorCode);
+        return;
+    }
+
+    // Caller
+    gfx_drawSymbol(layout.line1_pos, layout.line1_symbol_size, TEXT_ALIGN_LEFT,
+                   color_white, SYMBOL_CALL_MADE);
+    gfx_print(layout.line1_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "%lu", (unsigned long)rtxStatus.DMR_src);
+
+    // Talkgroup or called radio
+    gfx_drawSymbol(layout.line2_pos, layout.line2_symbol_size, TEXT_ALIGN_LEFT,
+                   color_white, SYMBOL_CALL_RECEIVED);
+    gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "%s %lu", rtxStatus.DMR_group ? "TG" : "ID",
+              (unsigned long)rtxStatus.DMR_dst);
+}
+#endif
+
 void _ui_drawModeInfo(ui_state_t* ui_state)
 {
     char bw_str[8] = { 0 };
@@ -208,9 +246,13 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
             break;
 
         case OPMODE_DMR:
+            #ifdef CONFIG_DMR
+            _ui_drawDmrInfo();
+            #else
             // Print talkgroup
             gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                     color_white, "DMR TG%s", "");
+            #endif
             break;
 
         #ifdef CONFIG_M17

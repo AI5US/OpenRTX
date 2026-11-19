@@ -52,6 +52,9 @@ enum uiScreen
 #ifdef CONFIG_DSTAR
     SETTINGS_DSTAR,
 #endif
+#ifdef CONFIG_DMR
+    SETTINGS_DMR,
+#endif
     SETTINGS_FM,
     SETTINGS_ACCESSIBILITY,
     SETTINGS_RESET2DEFAULTS,
@@ -94,6 +97,9 @@ enum settingsItems
 #endif
 #ifdef CONFIG_DSTAR
     S_DSTAR,
+#endif
+#ifdef CONFIG_DMR
+    S_DMR,
 #endif
     S_FM,
     S_ACCESSIBILITY,
@@ -158,6 +164,14 @@ enum settingsDStarItems
     DSTAR_RPT1,
     DSTAR_RPT2,
     DSTAR_MESSAGE
+};
+
+enum settingsDmrItems
+{
+    DMR_SET_ID = 0,
+    DMR_SET_DEST,
+    DMR_SET_CALL,
+    DMR_SET_CC
 };
 
 enum settingsFMItems
@@ -243,6 +257,9 @@ typedef struct ui_state_t
     char new_time_buf[9];
 #endif
     char new_callsign[10];
+#ifdef CONFIG_DMR
+    uint32_t new_dmr_number;   // DMR ID or destination being entered
+#endif
     freq_t new_offset;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
@@ -264,6 +281,9 @@ extern const char *settings_m17_items[];
 #ifdef CONFIG_DSTAR
 extern const char *settings_dstar_items[];
 #endif
+#ifdef CONFIG_DMR
+extern const char *settings_dmr_items[];
+#endif
 extern const char *settings_fm_items[];
 extern const char * settings_accessibility_items[];
 extern const char *backup_restore_items[];
@@ -277,6 +297,9 @@ extern const uint8_t settings_radio_num;
 extern const uint8_t settings_m17_num;
 #ifdef CONFIG_DSTAR
 extern const uint8_t settings_dstar_num;
+#endif
+#ifdef CONFIG_DMR
+extern const uint8_t settings_dmr_num;
 #endif
 extern const uint8_t settings_fm_num;
 extern const uint8_t settings_accessibility_num;
