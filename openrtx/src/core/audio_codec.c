@@ -207,6 +207,7 @@ static void *encodeFunc(void *arg)
     dstarEncoder_t *dstar = NULL;
 #endif
     struct dcBlock dcBlock;
+    struct voiceBand voiceBand;
     struct decimatorState decimator;
 
     // Allocate on the heap, as the stack isn't big enough for oversampling
@@ -224,7 +225,12 @@ static void *encodeFunc(void *arg)
         goto exit;
 
     dsp_resetState(dcBlock);
+    dsp_resetState(voiceBand);
     dsp_resetState(decimator);
+
+    // Codec2 renders little of the upper band by itself, the AMBE codecs
+    // all of it: band-limit their input as radios do
+    bool bandLimit = (curCodec != CODEC_CODEC2_3200);
 #ifdef CONFIG_DSTAR
     if (curCodec == CODEC_DSTAR_AMBE)
         dstar = dstarEncoder_create();
@@ -255,6 +261,8 @@ static void *encodeFunc(void *arg)
 #endif
 
             sample = dsp_dcBlockFilter(&dcBlock, sample);
+            if (bandLimit)
+                sample = dsp_voiceBandFilter(&voiceBand, sample);
             audio.data[outIdx++] = s16_mulSat(sample, CONFIG_MIC_GAIN);
         }
 
