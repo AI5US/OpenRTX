@@ -18,3 +18,8 @@
 
 #undef MBE_THREAD_LOCAL
 #define MBE_THREAD_LOCAL
+
+/* Single precision maths, see mbe_float_math.h */
+#ifdef MBE_FLOAT_MATH
+#include "mbe_float_math.h"
+#endif

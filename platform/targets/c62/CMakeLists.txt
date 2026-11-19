@@ -128,6 +128,14 @@ if(C62_DSTAR OR C62_DMR)
     "SHELL:-include ${OPENRTX_ROOT}/subprojects/packagefiles/mbelib-neo/mbe_single_thread.h"
     "SHELL:-include ${OPENRTX_ROOT}/platform/targets/c62/mbe_psram_heap.h")
 
+  # mbelib-neo in single precision, the FPU has no double precision (see
+  # mbe_float_math.h). Not PFFFT, which computes in single precision.
+  get_target_property(c62_mbe_sources mbe_neo SOURCES)
+  list(FILTER c62_mbe_sources INCLUDE REGEX "/mbelib-neo/")
+  set_source_files_properties(${c62_mbe_sources} PROPERTIES
+    COMPILE_DEFINITIONS MBE_FLOAT_MATH
+    COMPILE_OPTIONS -fsingle-precision-constant)
+
   target_link_libraries(app PRIVATE mbe_neo)
   target_sources(app PRIVATE ${OPENRTX_ROOT}/platform/targets/c62/mbe_heap.c)
 endif()
