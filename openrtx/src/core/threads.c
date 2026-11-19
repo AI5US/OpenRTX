@@ -227,6 +227,15 @@ void create_threads()
     struct sched_param param;
     param.sched_priority = THREAD_PRIO_HIGH;
     pthread_attr_setschedparam(&rtx_attr, &param);
+    #elif defined(PLATFORM_C62)
+    // The UI and codec threads run at the default POSIX priority, the lowest
+    // Zephyr preemptive one, and do not preempt each other. Run the RTX
+    // thread above them, so that a screen refresh or a vocoder frame cannot
+    // delay the baseband it feeds in real time (still below the C62 audio
+    // worker). In Zephyr's POSIX layer a higher number is a higher priority.
+    struct sched_param param;
+    param.sched_priority = 5;
+    pthread_attr_setschedparam(&rtx_attr, &param);
     #endif
 
     pthread_t rtx_thread;
