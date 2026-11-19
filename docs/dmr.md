@@ -7,7 +7,9 @@
 # DMR in OpenRTX
 
 Status: DMR direct mode (DMO) voice, implemented behind the `dmr` meson
-option and the `C62_DMR` CMake option, not yet tested on air.
+option and the `C62_DMR` CMake option. Tested on air on the Retevis C62,
+both ways with a DMR radio in direct mode (see below); not yet tested on the
+other radios.
 
 ## Scope
 
@@ -88,9 +90,37 @@ builds keep their settings layout.
 - The decoder keeps a jitter buffer of about 40 ms (DMR voice arrives three
   frames at a time, every 60 ms).
 
-Still to verify on air: deviation and phase on each radio, interoperability
-with DMR radios in direct mode and with MMDVM simplex hotspots, CPU load of
-the AMBE+2 vocoder on Cortex-M4 and on the C62, stack and heap use.
+### On-air test on the Retevis C62
+
+Tested with a DMR radio in direct mode (TG 9, colour code 1), receiving and
+transmitting, and checked with off-air recordings (RTL-SDR, FM discriminator
+demodulated offline, then decoded with this receiver and vocoder):
+
+- deviation: symbol unit 678 Hz against 648 Hz nominal (5% high, as the
+  D-STAR deviation, so a property of the shared M17 level calibration);
+  outer/inner level ratio 3.0 to 3.1, the four levels equally spread;
+- after the fixes below, voice syncs exactly 360 ms apart over the whole
+  transmissions, 0.03 to 0.06 corrected bit errors per AMBE+2 frame and
+  under 1% of frames with more than 3 errors.
+
+What it took, worth knowing for other radios:
+
+- a voice burst needs three speech frames: the transmitter waits for five
+  queued frames (sending more headers meanwhile) before the first burst, so
+  that the frames of a burst are always ready when it is built;
+- the baseband output must never miss a block: a replayed 20 ms block shifts
+  every following burst, and receivers then play the bursts up to the next
+  voice sync as corrupted frames. M17 and D-STAR receivers ride over such a
+  slip, DMR receivers do not. On the C62 the rtx thread had to run above the
+  UI (screen refresh) and codec threads;
+- the AMBE encoders need about 35 KB of stack and 42 KB of heap, and compute
+  in single precision on Cortex-M (`mbe_float_math.h`): in double precision
+  they were too slow for real time on the C62's single precision FPU;
+- on the C62, build with `-DC62_BASEBAND_DUMP=OFF`: with the RX baseband dump
+  on, transmissions were cut after about half a second while PTT was held.
+
+Still to verify on air: the other radios (deviation, phase, RAM: the MD-3x0
+may not have room for the 48 KB codec stack), MMDVM simplex hotspots.
 
 ## The vocoder
 
