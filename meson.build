@@ -154,7 +154,11 @@ dmr_def = {}
 dmr_src = []
 if get_option('dmr')
   dmr_def = {'CONFIG_DMR': ''}
-  dmr_src = ['openrtx/src/core/dmr_vocoder.c']
+  dmr_src = ['openrtx/src/core/dmr_vocoder.c',
+             'openrtx/src/protocols/DMR/Fec.cpp',
+             'openrtx/src/protocols/DMR/Burst.cpp',
+             'openrtx/src/protocols/DMR/Lc.cpp',
+             'openrtx/src/protocols/DMR/Voice.cpp']
 endif
 
 # mbelib-neo, the vocoder library shared by D-STAR and DMR
