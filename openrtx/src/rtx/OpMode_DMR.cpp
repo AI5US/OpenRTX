@@ -23,15 +23,28 @@ extern mod17Calib_t mod17CalData;
 
 using namespace DMR;
 
+/*
+ * Delay from the baseband output stream to the radio output, beyond the
+ * block of silence the stream starts with, in microseconds.
+ */
+#ifndef CONFIG_BASEBAND_TX_DELAY_US
+#define CONFIG_BASEBAND_TX_DELAY_US 0
+#endif
+
 OpMode_DMR::OpMode_DMR()
     : rxClock(0)
     , downlinkEnd(0)
     , downlinkTick(0)
     , wakeupTick(0)
+    , paEdge(0)
+    , paBurst(0)
+    , txBursts(0)
     , rxClockCount(0)
     , rxClockValid(false)
     , repeater(false)
     , wakeups(0)
+    , keying(false)
+    , paNextOn(false)
     , startRx(false)
     , startTx(false)
     , invertTxPhase(false)
@@ -50,6 +63,7 @@ void OpMode_DMR::enable()
 {
     codec_init();
     modulator.init();
+    modulator.setBlockCallback(&OpMode_DMR::blockPlaying, this);
     demodulator.init();
     voiceDec.reset();
     repeater = false;
@@ -64,6 +78,7 @@ void OpMode_DMR::disable()
 {
     startRx = false;
     startTx = false;
+    keying = false;
     voiceDec.reset();
     platform_ledOff(GREEN);
     platform_ledOff(RED);
@@ -355,9 +370,13 @@ void OpMode_DMR::alignToSlot(rtxStatus_t *const status, long long startTick)
     static constexpr long long SPS = Receiver::SAMPLES_PER_SYMBOL;
     static constexpr long long FRAME = FRAME_SYMBOLS * SPS;
 
+    static constexpr long long TX_DELAY = CONFIG_BASEBAND_TX_DELAY_US
+                                        * TICK_SAMPLES / 1000;
+
     // The output stream plays a block of silence before the first block
     // filled, see Modulator::start()
-    long long start = (startTick + TX_STREAM_DELAY_MS) * TICK_SAMPLES;
+    long long start = ((startTick + TX_STREAM_DELAY_MS) * TICK_SAMPLES)
+                    + TX_DELAY;
     long long advance = status->dmrTxTiming;
     long long target = downlinkEnd + ((TX_GUARD_SYMBOLS - advance) * SPS);
 
@@ -365,15 +384,78 @@ void OpMode_DMR::alignToSlot(rtxStatus_t *const status, long long startTick)
     if (lead < 0)
         lead += FRAME;
 
-    modulator.sendCarrier(static_cast<size_t>(lead / SPS));
+    // Leave time to switch the PA on before the first burst
+    size_t symbols = static_cast<size_t>(lead / SPS);
+    if (symbols < PA_MARGIN_SYMBOLS)
+        symbols += FRAME_SYMBOLS;
+
+#ifdef CONFIG_RADIO_PA_KEYING
+    static constexpr uint32_t TX_SPS = FskShaper::SAMPLES_PER_SYMBOL;
+    paEdge = (symbols - PA_MARGIN_SYMBOLS) * TX_SPS;
+    paBurst = 0;
+    paNextOn = true;
+    txBursts = 0;
+    keying = true;
+#endif
+
+    modulator.sendCarrier(symbols);
 }
 
 void OpMode_DMR::sendBurst(const uint8_t *burst)
 {
-    if (repeater)
-        modulator.sendSlot(burst);
-    else
+    if (repeater == false) {
         modulator.sendFrame(burst);
+        return;
+    }
+
+    txBursts++;
+    modulator.sendSlot(burst);
+}
+
+void OpMode_DMR::blockPlaying(void *ctx, uint32_t sample, long long tick)
+{
+    static_cast<OpMode_DMR *>(ctx)->keyPa(sample, tick);
+}
+
+void OpMode_DMR::keyPa(uint32_t sample, long long tick)
+{
+#ifdef CONFIG_RADIO_PA_KEYING
+    static constexpr uint32_t SPS = FskShaper::SAMPLES_PER_SYMBOL;
+    static constexpr uint32_t RATE = FskShaper::SAMPLE_RATE;
+    static constexpr uint32_t MARGIN = 2 * PA_MARGIN_SYMBOLS * SPS;
+    static constexpr uint32_t ON = (BURST_SYMBOLS * SPS) + MARGIN;
+    static constexpr uint32_t OFF = (FRAME_SYMBOLS * SPS) - ON;
+    static constexpr uint32_t DELAY = static_cast<uint64_t>(RATE)
+                                    * CONFIG_BASEBAND_TX_DELAY_US / 1000000;
+
+    if (keying == false)
+        return;
+
+    // Switch when the samples of an edge reach the radio output
+    uint32_t end = sample + Modulator::BLOCK_SAMPLES;
+    while ((paEdge + DELAY) < end) {
+        // Not before the burst has been sent
+        if (paNextOn && (paBurst >= txBursts))
+            break;
+
+        uint32_t at = paEdge + DELAY;
+        if (at > sample)
+            sleepUntil(tick + ((((at - sample) * 1000) + (RATE / 2)) / RATE));
+
+        radio_setPa(paNextOn);
+        if (paNextOn) {
+            paEdge += ON;
+        } else {
+            paEdge += OFF;
+            paBurst++;
+        }
+
+        paNextOn = !paNextOn;
+    }
+#else
+    (void)sample;
+    (void)tick;
+#endif
 }
 
 void OpMode_DMR::txState(rtxStatus_t *const status)
@@ -392,6 +474,12 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
         txAudioPath = audioPath_request(SOURCE_MIC, SINK_MCU, PRIO_TX);
         codec_startEncodeType(txAudioPath, CODEC_DMR_AMBE);
         radio_enableTx();
+
+#ifdef CONFIG_RADIO_PA_KEYING
+        // Repeater mode: on only for the bursts, see keyPa()
+        if (repeater)
+            radio_setPa(false);
+#endif
 
         modulator.invertPhase(invertTxPhase);
         modulator.start();
@@ -435,6 +523,7 @@ void OpMode_DMR::txState(rtxStatus_t *const status)
         voiceEnc.terminator(burst);
         sendBurst(burst);
         modulator.stop();
+        keying = false;
         startRx = true;
         status->opStatus = OFF;
     }

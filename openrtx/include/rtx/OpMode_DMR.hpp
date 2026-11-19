@@ -28,7 +28,8 @@
  * selected timeslot of the downlink is played back, and transmissions go in
  * the same timeslot of the uplink, timed from the last downlink burst. With
  * no recent downlink, a BS activation CSBK wakes the repeater up first.
- * Between bursts the radio sends unmodulated carrier.
+ * Between bursts the power amplifier is switched off on the targets that
+ * can (CONFIG_RADIO_PA_KEYING), the others send unmodulated carrier.
  */
 class OpMode_DMR : public OpMode
 {
@@ -106,6 +107,20 @@ private:
      */
     void sendBurst(const uint8_t *burst);
 
+    /**
+     * Modulator block callback, see Modulator::BlockCallback.
+     */
+    static void blockPlaying(void *ctx, uint32_t sample, long long tick);
+
+    /**
+     * Repeater mode: switch the power amplifier on and off around the
+     * bursts that reach the radio output while a block plays.
+     *
+     * @param sample: modulator sample index of the block now playing.
+     * @param tick: system tick when the block started playing.
+     */
+    void keyPa(uint32_t sample, long long tick);
+
     /// Preamble length, 120 bytes are 100 ms
     static constexpr size_t PREAMBLE_BYTES = 120;
 
@@ -131,6 +146,10 @@ private:
     /// first block filled
     static constexpr long long TX_STREAM_DELAY_MS = 20;
 
+    /// Power amplifier switched on before and off after a burst, about
+    /// 1 ms: the switching follows the system tick
+    static constexpr uint32_t PA_MARGIN_SYMBOLS = 5;
+
     /// Age of the last downlink burst still good to time a transmission
     static constexpr long long DOWNLINK_TIMEOUT_MS = 1000;
 
@@ -147,10 +166,15 @@ private:
     long long downlinkEnd;  ///< End of a downlink burst of the timeslot
     long long downlinkTick; ///< System tick of the last downlink burst
     long long wakeupTick;   ///< System tick of the last wake-up
+    uint32_t paEdge;        ///< Modulator sample of the next PA switching
+    uint32_t paBurst;       ///< Burst of the next PA switching
+    uint32_t txBursts;      ///< Bursts sent in the transmission
     uint32_t rxClockCount;  ///< Sample count of the last rxClock update
     bool rxClockValid;      ///< rxClock estimated since sampling started
     bool repeater;          ///< Repeater mode
     uint8_t wakeups;        ///< Wake-ups sent for the current PTT press
+    bool keying;            ///< Switching the PA around the bursts
+    bool paNextOn;          ///< Next PA switching is on
     bool startRx;           ///< Start reception
     bool startTx;           ///< Start transmission
     bool invertTxPhase;     ///< TX signal phase inversion
