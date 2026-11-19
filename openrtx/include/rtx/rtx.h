@@ -75,6 +75,11 @@ typedef struct
     uint32_t DMR_src;                  /**< DMR RX source ID           */
     uint32_t DMR_dst;                  /**< DMR RX destination ID      */
 #endif
+#ifdef CONFIG_YSF
+    bool     ysfSourceOk;              /**< YSF RX callsigns valid     */
+    char     YSF_src[11];              /**< YSF RX source callsign     */
+    char     YSF_dst[11];              /**< YSF RX destination         */
+#endif
 }
 rtxStatus_t;
 
@@ -96,7 +101,8 @@ enum opmode
     OPMODE_FM   = 1,        /**< Analog FM          */
     OPMODE_DMR  = 2,        /**< DMR                */
     OPMODE_M17  = 3,        /**< M17                */
-    OPMODE_DSTAR = 5        /**< D-STAR (4: TETRA)  */
+    OPMODE_DSTAR = 5,       /**< D-STAR (4: TETRA)  */
+    OPMODE_YSF  = 6         /**< Yaesu System Fusion */
 };
 
 /**

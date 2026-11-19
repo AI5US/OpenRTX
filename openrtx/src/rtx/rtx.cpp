@@ -16,6 +16,9 @@
 #ifdef CONFIG_DMR
 #include "rtx/OpMode_DMR.hpp"
 #endif
+#ifdef CONFIG_YSF
+#include "rtx/OpMode_YSF.hpp"
+#endif
 
 static pthread_mutex_t   *cfgMutex;     // Mutex for incoming config messages
 static const rtxStatus_t *newCnf;       // Pointer for incoming config messages
@@ -34,6 +37,9 @@ static OpMode_DSTAR dstarMode;          // D-STAR mode handler
 #endif
 #ifdef CONFIG_DMR
 static OpMode_DMR dmrMode;              // DMR mode handler
+#endif
+#ifdef CONFIG_YSF
+static OpMode_YSF ysfMode;              // YSF mode handler
 #endif
 
 
@@ -158,6 +164,9 @@ void rtx_task()
                 #endif
                 #ifdef CONFIG_DMR
                 case OPMODE_DMR:   newMode = &dmrMode;   break;
+                #endif
+                #ifdef CONFIG_YSF
+                case OPMODE_YSF:   newMode = &ysfMode;   break;
                 #endif
                 default:   newMode = &noMode;
             }
