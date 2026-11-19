@@ -56,6 +56,9 @@ public:
      */
     static constexpr int32_t UNIT_LEVEL = 5896;
 
+    /// Deviation of a symbol unit with UNIT_LEVEL, in Hz
+    static constexpr uint16_t UNIT_DEVIATION = 648;
+
     /**
      * Constructor.
      */
@@ -93,7 +96,18 @@ public:
      */
     void invertPhase(bool invert);
 
+    /**
+     * \brief Set the deviation of a symbol unit, UNIT_DEVIATION (DMR) by
+     * default; other 4FSK modes use other ones, e.g. 900 Hz for YSF.
+     *
+     * @param unitHz: deviation of a +1 symbol, in Hz.
+     */
+    void setDeviation(uint16_t unitHz);
+
 private:
+    /// Fixed point scale of gain
+    static constexpr int32_t GAIN_ONE = 4096;
+
     /// Symbols in the filter history
     static constexpr size_t HISTORY = 9;
 
@@ -106,6 +120,7 @@ private:
      */
     size_t shape(int8_t symbol, int16_t *out);
 
+    int32_t gain;            ///< Output gain, GAIN_ONE for UNIT_LEVEL
     int8_t history[HISTORY]; ///< Current symbol and the previous ones
     bool inverted;           ///< Output phase inversion
 };
@@ -208,6 +223,13 @@ public:
      * transmission.
      */
     void stop();
+
+    /**
+     * Set the deviation of a symbol unit, see FskShaper::setDeviation().
+     *
+     * @param unitHz: deviation of a +1 symbol, in Hz.
+     */
+    void setDeviation(uint16_t unitHz);
 
     /**
      * Set the function called each time a block starts playing.

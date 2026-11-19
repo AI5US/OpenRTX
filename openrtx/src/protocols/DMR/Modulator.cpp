@@ -45,9 +45,11 @@ constexpr uint32_t FskShaper::SAMPLE_RATE;
 constexpr size_t FskShaper::SAMPLES_PER_SYMBOL;
 constexpr size_t FskShaper::DELAY_SYMBOLS;
 constexpr int32_t FskShaper::UNIT_LEVEL;
+constexpr uint16_t FskShaper::UNIT_DEVIATION;
+constexpr int32_t FskShaper::GAIN_ONE;
 constexpr size_t FskShaper::HISTORY;
 
-FskShaper::FskShaper() : inverted(false)
+FskShaper::FskShaper() : gain(GAIN_ONE), inverted(false)
 {
     reset();
 }
@@ -77,6 +79,11 @@ void FskShaper::invertPhase(bool invert)
     inverted = invert;
 }
 
+void FskShaper::setDeviation(uint16_t unitHz)
+{
+    gain = (static_cast<int32_t>(unitHz) * GAIN_ONE) / UNIT_DEVIATION;
+}
+
 size_t FskShaper::shape(int8_t symbol, int16_t *out)
 {
     memmove(&history[1], &history[0], HISTORY - 1);
@@ -92,6 +99,8 @@ size_t FskShaper::shape(int8_t symbol, int16_t *out)
 
             acc += history[k] * TAPS[tap];
         }
+
+        acc = (acc * gain) / GAIN_ONE;
 
         // Rare peaks of the filtered signal slightly exceed the 16 bit range
         if (acc > 32767)
@@ -268,6 +277,11 @@ void Modulator::stop()
 #if defined(PLATFORM_MD3x0) || defined(PLATFORM_MDUV3x0)
     pwmComp.reset();
 #endif
+}
+
+void Modulator::setDeviation(uint16_t unitHz)
+{
+    shaper.setDeviation(unitHz);
 }
 
 void Modulator::setBlockCallback(BlockCallback callback, void *ctx)
