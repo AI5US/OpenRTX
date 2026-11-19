@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # mbelib-neo, IMBE/AMBE vocoder library. Provides the software AMBE 3600x2400
-# encoder and decoder used for D-STAR. The TETRA decoder is not built.
+# (D-STAR) and AMBE+2 3600x2450 (DMR) encoders and decoders. The TETRA
+# decoder is not built.
 project('mbelib-neo', 'c', version : '2.6.11')
 
 pffft_dep = subproject('pffft').get_variable('pffft_dep')
