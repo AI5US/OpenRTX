@@ -969,6 +969,9 @@ static void _ui_cycleRadioMode()
 #ifdef CONFIG_DMR
         OPMODE_DMR,
 #endif
+#ifdef CONFIG_YSF
+        OPMODE_YSF,
+#endif
     };
     const size_t numModes = sizeof(modes) / sizeof(modes[0]);
 

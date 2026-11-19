@@ -35,6 +35,11 @@ static bool _ui_callShown(void)
     if ((dmrStatus.opMode == OPMODE_DMR) && dmrStatus.dmrLcOk)
         return true;
 #endif
+#ifdef CONFIG_YSF
+    rtxStatus_t ysfStatus = rtx_getCurrentStatus();
+    if ((ysfStatus.opMode == OPMODE_YSF) && ysfStatus.ysfSourceOk)
+        return true;
+#endif
     return false;
 }
 
@@ -213,6 +218,35 @@ static void _ui_drawDmrInfo(void)
 }
 #endif
 
+#ifdef CONFIG_YSF
+/**
+ * YSF mode information: the received transmission or, when none is
+ * received, the destination of the transmissions.
+ */
+static void _ui_drawYsfInfo(void)
+{
+    rtxStatus_t rtxStatus = rtx_getCurrentStatus();
+
+    if (rtxStatus.ysfSourceOk == false) {
+        gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  color_white, "YSF ALL DG0");
+        return;
+    }
+
+    // Caller
+    gfx_drawSymbol(layout.line1_pos, layout.line1_symbol_size, TEXT_ALIGN_LEFT,
+                   color_white, SYMBOL_CALL_MADE);
+    gfx_print(layout.line1_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "%s", rtxStatus.YSF_src);
+
+    // Destination
+    gfx_drawSymbol(layout.line2_pos, layout.line2_symbol_size, TEXT_ALIGN_LEFT,
+                   color_white, SYMBOL_CALL_RECEIVED);
+    gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "%s", rtxStatus.YSF_dst);
+}
+#endif
+
 void _ui_drawModeInfo(ui_state_t* ui_state)
 {
     char bw_str[8] = { 0 };
@@ -348,6 +382,12 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
         #ifdef CONFIG_DSTAR
         case OPMODE_DSTAR:
             _ui_drawDStarInfo(ui_state);
+            break;
+        #endif
+
+        #ifdef CONFIG_YSF
+        case OPMODE_YSF:
+            _ui_drawYsfInfo();
             break;
         #endif
     }
@@ -488,6 +528,17 @@ void _ui_drawMainBottom()
         #endif
         #ifdef CONFIG_DSTAR
         case OPMODE_DSTAR:
+            gfx_drawSmeterLevel(meter_pos,
+                                meter_width,
+                                meter_height,
+                                rssi,
+                                mic_level,
+                                volume,
+                                true);
+            break;
+        #endif
+        #ifdef CONFIG_YSF
+        case OPMODE_YSF:
             gfx_drawSmeterLevel(meter_pos,
                                 meter_width,
                                 meter_height,
