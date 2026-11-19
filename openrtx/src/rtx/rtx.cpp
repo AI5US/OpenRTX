@@ -13,6 +13,9 @@
 #ifdef CONFIG_DSTAR
 #include "rtx/OpMode_DSTAR.hpp"
 #endif
+#ifdef CONFIG_DMR
+#include "rtx/OpMode_DMR.hpp"
+#endif
 
 static pthread_mutex_t   *cfgMutex;     // Mutex for incoming config messages
 static const rtxStatus_t *newCnf;       // Pointer for incoming config messages
@@ -28,6 +31,9 @@ static OpMode_M17 m17Mode;              // M17 mode handler
 #endif
 #ifdef CONFIG_DSTAR
 static OpMode_DSTAR dstarMode;          // D-STAR mode handler
+#endif
+#ifdef CONFIG_DMR
+static OpMode_DMR dmrMode;              // DMR mode handler
 #endif
 
 
@@ -153,6 +159,9 @@ void rtx_task()
                 #endif
                 #ifdef CONFIG_DSTAR
                 case OPMODE_DSTAR: currMode = &dstarMode; break;
+                #endif
+                #ifdef CONFIG_DMR
+                case OPMODE_DMR:   currMode = &dmrMode;   break;
                 #endif
                 default:   currMode = &noMode;
             }

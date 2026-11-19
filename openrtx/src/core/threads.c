@@ -21,6 +21,9 @@
 #include "core/backup.h"
 #include "core/gps.h"
 #include "core/voicePrompts.h"
+#ifdef CONFIG_DMR
+#include "interfaces/cps_io.h"
+#endif
 
 #if defined(PLATFORM_TTWRPLUS)
 #include "pmu.h"
@@ -89,6 +92,29 @@ void *ui_threadFunc(void *arg)
             rtx_cfg.canRxEn = state.settings.m17_can_rx;
             strncpy(rtx_cfg.source_address,      state.settings.callsign, 10);
             strncpy(rtx_cfg.destination_address, state.settings.m17_dest, 10);
+
+#ifdef CONFIG_DMR
+            // DMR: codeplug channels with a DMR contact carry their own
+            // colour code and destination, otherwise use the DMR settings.
+            rtx_cfg.dmrSrcId       = state.settings.dmr_id;
+            rtx_cfg.dmrDstId       = state.settings.dmr_dest;
+            rtx_cfg.dmrPrivateCall = state.settings.dmr_private;
+            rtx_cfg.dmrTxColorCode = state.settings.dmr_cc;
+            rtx_cfg.dmrRxColorCode = state.settings.dmr_cc;
+
+            contact_t contact;
+            if ((state.channel.mode == OPMODE_DMR)
+                && (state.channel.dmr.contact_index != 0)
+                && (cps_readContact(&contact,
+                                    state.channel.dmr.contact_index) == 0)
+                && (contact.mode == OPMODE_DMR)) {
+                rtx_cfg.dmrDstId       = contact.info.dmr.id;
+                rtx_cfg.dmrPrivateCall = (contact.info.dmr.contactType
+                                          == PRIVATE);
+                rtx_cfg.dmrTxColorCode = state.channel.dmr.txColorCode;
+                rtx_cfg.dmrRxColorCode = state.channel.dmr.rxColorCode;
+            }
+#endif
 
             pthread_mutex_unlock(&rtx_mutex);
 

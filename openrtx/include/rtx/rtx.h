@@ -62,6 +62,17 @@ typedef struct
     char     DSTAR_rpt2[9];            /**< D-STAR RX destination rpt. */
     char     DSTAR_message[21];        /**< D-STAR RX text message     */
 #endif
+#ifdef CONFIG_DMR
+    uint32_t dmrSrcId;                 /**< DMR TX source ID           */
+    uint32_t dmrDstId;                 /**< DMR TX destination ID      */
+    uint8_t  dmrTxColorCode : 4,       /**< DMR TX colour code         */
+             dmrRxColorCode : 4;       /**< DMR RX colour code         */
+    bool     dmrPrivateCall;           /**< DMR TX private call        */
+    bool     dmrLcOk;                  /**< DMR RX link control valid  */
+    bool     DMR_group;                /**< DMR RX group call          */
+    uint32_t DMR_src;                  /**< DMR RX source ID           */
+    uint32_t DMR_dst;                  /**< DMR RX destination ID      */
+#endif
 }
 rtxStatus_t;
 
