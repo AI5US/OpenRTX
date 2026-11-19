@@ -77,22 +77,32 @@ void OpMode_DSTAR::update(rtxStatus_t *const status, const bool newCfg)
 {
     (void)newCfg;
 
-    // Same baseband phase inversions as M17: they depend on the radio
-    // hardware, not on the modulation.
+    // Baseband phase inversions of M17, which give the on air polarity: they
+    // depend on the radio hardware, not on the modulation.
+    bool m17InvertTx = false;
+    bool m17InvertRx = false;
 #if defined(PLATFORM_MD3x0) || defined(PLATFORM_MDUV3x0)
     const hwInfo_t *hwinfo = platform_getHwInfo();
-    invertTxPhase = true;
-    invertRxPhase = (hwinfo->vhf_band == 1);
+    m17InvertTx = true;
+    m17InvertRx = (hwinfo->vhf_band == 1);
 #elif defined(PLATFORM_MOD17)
-    invertTxPhase = (mod17CalData.bb_tx_invert == 1);
-    invertRxPhase = (mod17CalData.bb_rx_invert == 1);
+    m17InvertTx = (mod17CalData.bb_tx_invert == 1);
+    m17InvertRx = (mod17CalData.bb_rx_invert == 1);
 #elif defined(PLATFORM_CS7000) || defined(PLATFORM_CS7000P) \
     || defined(PLATFORM_C62)
-    invertTxPhase = true;
+    m17InvertTx = true;
 #elif defined(PLATFORM_DM1701)
-    invertTxPhase = true;
-    invertRxPhase = true;
+    m17InvertTx = true;
+    m17InvertRx = true;
 #endif
+
+    // The modem follows MMDVM's convention, a bit 1 being a negative level.
+    // MMDVM's levels are the opposite of the on air polarity (its DMR
+    // levels send the -3 symbol as a positive level, and MMDVM hardware
+    // inverts all modes alike): on air, a D-STAR bit 1 is a positive
+    // deviation, so D-STAR inverts the M17 phases.
+    invertTxPhase = !m17InvertTx;
+    invertRxPhase = !m17InvertRx;
 
     switch (status->opStatus) {
         case OFF:
