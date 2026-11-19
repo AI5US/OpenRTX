@@ -166,9 +166,29 @@ if get_option('dmr')
              'openrtx/src/rtx/OpMode_DMR.cpp']
 endif
 
-# mbelib-neo, the vocoder library shared by D-STAR and DMR
+# YSF support, optional (meson option 'ysf'): Yaesu System Fusion (C4FM)
+# V/D mode 2 voice. Shares the AMBE+2 vocoder and the 4FSK modulator with
+# DMR.
+ysf_def = {}
+ysf_src = []
+if get_option('ysf')
+  ysf_def = {'CONFIG_YSF': ''}
+  ysf_src = ['openrtx/src/protocols/YSF/Bits.cpp',
+             'openrtx/src/protocols/YSF/Convolution.cpp',
+             'openrtx/src/protocols/YSF/Fich.cpp',
+             'openrtx/src/protocols/YSF/Payload.cpp',
+             'openrtx/src/protocols/YSF/Voice.cpp',
+             'openrtx/src/protocols/YSF/Demodulator.cpp',
+             'openrtx/src/rtx/OpMode_YSF.cpp']
+  if not get_option('dmr')
+    ysf_src += ['openrtx/src/core/dmr_vocoder.c',
+                'openrtx/src/protocols/DMR/Modulator.cpp']
+  endif
+endif
+
+# mbelib-neo, the vocoder library shared by D-STAR, DMR and YSF
 mbe_dep = []
-if get_option('dstar') or get_option('dmr')
+if get_option('dstar') or get_option('dmr') or get_option('ysf')
   mbe_dep = [subproject('mbelib-neo').get_variable('mbelib_dep')]
 endif
 
@@ -410,9 +430,9 @@ linux_def = {'PLATFORM_LINUX': '', 'VP_USE_FILESYSTEM':''}
 
 sdl_dep     = dependency('SDL2',     required: false)
 threads_dep = dependency('threads',  required: false)
-linux_src  += openrtx_src + dstar_src + dmr_src
+linux_src  += openrtx_src + dstar_src + dmr_src + ysf_src
 linux_inc  += openrtx_inc
-linux_def  += openrtx_def + dstar_def + dmr_def
+linux_def  += openrtx_def + dstar_def + dmr_def + ysf_def
 linux_def  += {'sniprintf':'snprintf', 'vsniprintf':'vsnprintf'}
 
 #
@@ -474,9 +494,9 @@ md3x0_src = ['platform/drivers/CPS/cps_io_native_MD3x0.c',
 md3x0_inc = ['platform/targets/MD-3x0']
 md3x0_def = {'PLATFORM_MD3x0': '', 'timegm': 'mktime'}
 
-md3x0_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default + mdx_src
+md3x0_src += openrtx_src + dstar_src + dmr_src + ysf_src + stm32f405_src + ui_src_default + mdx_src
 md3x0_inc += openrtx_inc + stm32f405_inc
-md3x0_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
+md3x0_def += openrtx_def + stm32f405_def + dstar_def + dmr_def + ysf_def
 
 ##
 ## TYT MD-UV380
@@ -498,9 +518,9 @@ mduv3x0_src = ['platform/drivers/CPS/cps_io_native_MDUV3x0.c',
 mduv3x0_inc = ['platform/targets/MD-UV3x0']
 mduv3x0_def =  {'PLATFORM_MDUV3x0': '', 'timegm': 'mktime'}
 
-mduv3x0_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default + mdx_src
+mduv3x0_src += openrtx_src + dstar_src + dmr_src + ysf_src + stm32f405_src + ui_src_default + mdx_src
 mduv3x0_inc += openrtx_inc + stm32f405_inc
-mduv3x0_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
+mduv3x0_def += openrtx_def + stm32f405_def + dstar_def + dmr_def + ysf_def
 
 ##
 ## TYT MD-9600
@@ -563,9 +583,9 @@ mod17_src = ['platform/targets/Module17/platform.c',
 mod17_inc = ['platform/targets/Module17']
 mod17_def = {'PLATFORM_MOD17': ''}
 
-mod17_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_module17
+mod17_src += openrtx_src + dstar_src + dmr_src + ysf_src + stm32f405_src + ui_src_module17
 mod17_inc += openrtx_inc + stm32f405_inc
-mod17_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
+mod17_def += openrtx_def + stm32f405_def + dstar_def + dmr_def + ysf_def
 
 ##
 ## Connect Systems CS70000
@@ -596,9 +616,9 @@ cs7000_src = ['platform/drivers/NVM/nvmem_CS7000.c',
 cs7000_inc = ['platform/targets/CS7000']
 cs7000_def = {'PLATFORM_CS7000': '', 'timegm': 'mktime'}
 
-cs7000_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default
+cs7000_src += openrtx_src + dstar_src + dmr_src + ysf_src + stm32f405_src + ui_src_default
 cs7000_inc += openrtx_inc + stm32f405_inc
-cs7000_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
+cs7000_def += openrtx_def + stm32f405_def + dstar_def + dmr_def + ysf_def
 
 ##
 ## Connect Systems CS70000-PLUS
@@ -627,9 +647,9 @@ cs7000p_src = ['platform/drivers/NVM/nvmem_CS7000.c',
 cs7000p_inc = ['platform/targets/CS7000-PLUS']
 cs7000p_def = {'PLATFORM_CS7000P': '', 'timegm': 'mktime'}
 
-cs7000p_src += openrtx_src + dstar_src + dmr_src + stm32h743_src + miosix_cm7_src + ui_src_default
+cs7000p_src += openrtx_src + dstar_src + dmr_src + ysf_src + stm32h743_src + miosix_cm7_src + ui_src_default
 cs7000p_inc += openrtx_inc + stm32h743_inc + miosix_cm7_inc
-cs7000p_def += openrtx_def + stm32h743_def + miosix_cm7_def + dstar_def + dmr_def
+cs7000p_def += openrtx_def + stm32h743_def + miosix_cm7_def + dstar_def + dmr_def + ysf_def
 
 ##
 ## Baofeng DM-1701
@@ -649,9 +669,9 @@ dm1701_src = ['platform/targets/DM-1701/platform.c',
 dm1701_inc = ['platform/targets/DM-1701']
 dm1701_def = {'PLATFORM_DM1701': '', 'timegm': 'mktime'}
 
-dm1701_src += openrtx_src + dstar_src + dmr_src + stm32f405_src + ui_src_default + mdx_src
+dm1701_src += openrtx_src + dstar_src + dmr_src + ysf_src + stm32f405_src + ui_src_default + mdx_src
 dm1701_inc += openrtx_inc + stm32f405_inc
-dm1701_def += openrtx_def + stm32f405_def + dstar_def + dmr_def
+dm1701_def += openrtx_def + stm32f405_def + dstar_def + dmr_def + ysf_def
 
 ##
 ## Radtel RT-4D

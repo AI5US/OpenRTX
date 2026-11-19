@@ -3,3 +3,4 @@ option('ubsan', type : 'boolean', value : false, description : 'Compile the soft
 option('test', type: 'string', description: 'Replace the main OpenRTX source file with a specialized test')
 option('dstar', type : 'boolean', value : false, description : 'Enable D-STAR support, with a software AMBE vocoder (mbelib-neo)')
 option('dmr', type : 'boolean', value : false, description : 'Enable DMR support, with a software AMBE+2 vocoder (mbelib-neo)')
+option('ysf', type : 'boolean', value : false, description : 'Enable Yaesu System Fusion (C4FM) support, with a software AMBE+2 vocoder (mbelib-neo)')
