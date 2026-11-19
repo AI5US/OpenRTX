@@ -33,6 +33,19 @@ Alternatively, using `west` directly:
 west build -b c62 -d build .
 ```
 
+### Build options
+
+CMake options go after `--`, for example
+`west build -b c62 -d build . -- -DC62_DSTAR=ON -DC62_DMR=ON`:
+
+| Option | Default | Effect |
+|---|---|---|
+| `C62_DSTAR` | `OFF` | D-STAR support, with the software AMBE vocoder of mbelib-neo (see `docs/dstar.md`) |
+| `C62_DMR` | `OFF` | DMR direct mode voice, with the software AMBE+2 vocoder of mbelib-neo (see `docs/dmr.md`) |
+
+Both fetch mbelib-neo and PFFFT with `west update --group-filter +csk6`.
+CMake remembers the options in the build directory.
+
 ### DSP firmware
 
 OpenRTX does not boot without the ListenAI DSP firmware, flashed at
