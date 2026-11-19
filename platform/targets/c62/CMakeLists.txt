@@ -159,6 +159,8 @@ if(C62_DMR)
     ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Burst.cpp
     ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Lc.cpp
     ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Voice.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Cach.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Csbk.cpp
     ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Modulator.cpp
     ${OPENRTX_ROOT}/openrtx/src/protocols/DMR/Demodulator.cpp
     ${OPENRTX_ROOT}/openrtx/src/rtx/OpMode_DMR.cpp)

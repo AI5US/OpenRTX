@@ -67,6 +67,28 @@ static constexpr uint32_t MS_DATA_SYNC_SIGNS = 0x76286E;
 static constexpr uint32_t MS_VOICE_SYNC_SIGNS = 0x89D791;
 static constexpr uint32_t SYNC_SIGNS_MASK = 0xFFFFFF;
 
+/// Base station sourced sync patterns, sent by repeaters, and their symbol
+/// signs
+static constexpr uint64_t BS_VOICE_SYNC = 0x755FD7DF75F7ULL;
+static constexpr uint64_t BS_DATA_SYNC = 0xDFF57D75DF5DULL;
+static constexpr uint32_t BS_VOICE_SYNC_SIGNS = 0xBC64B2;
+static constexpr uint32_t BS_DATA_SYNC_SIGNS = 0x439B4D;
+
+/// Common announcement channel (CACH), before each burst of a repeater
+/// transmission: 24 bits, 12 symbols, 2.5 ms
+static constexpr size_t CACH_BITS = 24;
+static constexpr size_t CACH_SYMBOLS = CACH_BITS / 2;
+
+/// Control signalling block opcode: BS outbound activation, which wakes up
+/// a repeater
+static constexpr uint8_t CSBKO_BS_DWN_ACT = 0x38;
+
+/// Checksum mask of a CSBK
+static constexpr uint8_t CSBK_CRC_MASK[2] = { 0xA5, 0xA5 };
+
+/// Radio ID addressing all repeaters
+static constexpr uint32_t ALL_ID = 0xFFFFFF;
+
 /// Data types, sent in the slot type field of data bursts
 enum DataType : uint8_t {
     DT_VOICE_PI_HEADER = 0,
