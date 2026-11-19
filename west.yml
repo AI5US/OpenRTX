@@ -21,6 +21,9 @@ manifest:
     - name: zephyr
       url-base: https://github.com/zephyrproject-rtos
 
+    - name: arancormonk
+      url-base: https://github.com/arancormonk
+
   projects:
     # Zephyr mainline modules
     - name: zephyr
@@ -105,5 +108,21 @@ manifest:
       remote: openrtx
       revision: openrtx-c62
       path: modules/lib/urpc
+      groups:
+        - csk6
+
+    # AMBE vocoder library and its FFT, for the C62 D-STAR and DMR support
+    # (C62_DSTAR, C62_DMR)
+    - name: mbelib-neo
+      remote: arancormonk
+      revision: a7803f892256bad822a3cae79e18bc33d6bacc36
+      path: modules/lib/mbelib-neo
+      groups:
+        - csk6
+
+    - name: pffft
+      remote: arancormonk
+      revision: b7ed3cdb8655426a77aa26f8c0f5154205427f45
+      path: modules/lib/pffft
       groups:
         - csk6
