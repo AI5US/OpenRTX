@@ -13,7 +13,17 @@
  * Threads' stack sizes
  */
 #define UI_THREAD_STKSIZE     2048
+#if defined(CONFIG_DSTAR)
+/*
+ * The D-STAR mode decodes in the rtx thread, radio header Viterbi decoding
+ * included.
+ */
+#define RTX_THREAD_STKSIZE    2048
+#elif defined(PLATFORM_C62)
+#define RTX_THREAD_STKSIZE    1024
+#else
 #define RTX_THREAD_STKSIZE    512
+#endif
 #define CODEC2_THREAD_STKSIZE 16384
 #define AUDIO_THREAD_STKSIZE  512
 

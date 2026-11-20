@@ -63,6 +63,25 @@ static inline void dsp_removeDcOffset(struct dcBlock *dcb, int16_t *buffer,
 }
 
 /**
+ * Data structure holding the internal state of the voice band filter.
+ */
+struct voiceBand {
+    float z[3][2]; ///< State of each second order section
+};
+
+/**
+ * Run a single step of the voice band filter: 300 Hz to 3 kHz for speech
+ * sampled at 8 kHz, as radios band-limit their transmitted audio. Vocoders
+ * that render the whole band, as the AMBE ones do, otherwise make hissing
+ * sounds harsh.
+ *
+ * @param vb: pointer to the filter state.
+ * @param sample: input sample.
+ * @return filtered sample.
+ */
+int16_t dsp_voiceBandFilter(struct voiceBand *vb, int16_t sample);
+
+/**
  * Data structure holding the internal state of a decimation block.
  */
 struct decimatorState {

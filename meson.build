@@ -131,6 +131,25 @@ else
   codec2_dep = codec2_proj.get_variable('codec2_dep')
 endif
 
+# D-STAR support, optional (meson option 'dstar'). Uses mbelib-fx for the
+# software AMBE 3600x2400 vocoder. Only added to targets having a baseband
+# path, the same ones supporting M17.
+dstar_def = {}
+dstar_src = []
+dstar_dep = []
+if get_option('dstar')
+  dstar_def = {'CONFIG_DSTAR': ''}
+  dstar_src = ['openrtx/src/core/dstar_vocoder.c',
+               'openrtx/src/protocols/DSTAR/Header.cpp',
+               'openrtx/src/protocols/DSTAR/HeaderCoder.cpp',
+               'openrtx/src/protocols/DSTAR/SlowData.cpp',
+               'openrtx/src/protocols/DSTAR/Modulator.cpp',
+               'openrtx/src/protocols/DSTAR/Demodulator.cpp',
+               'openrtx/src/rtx/OpMode_DSTAR.cpp']
+  dstar_dep = [subproject('mbelib-fx', default_options : ['imbe=false'])
+                .get_variable('mbefx_dep')]
+endif
+
 # Catch2, C++ testing framework (only for native/linux builds)
 if not meson.is_cross_build()
   catch2_dep = dependency('catch2-with-main', fallback: ['catch2', 'catch2_with_main_dep'])
@@ -369,9 +388,9 @@ linux_def = {'PLATFORM_LINUX': '', 'VP_USE_FILESYSTEM':''}
 
 sdl_dep     = dependency('SDL2',     required: false)
 threads_dep = dependency('threads',  required: false)
-linux_src  += openrtx_src
+linux_src  += openrtx_src + dstar_src
 linux_inc  += openrtx_inc
-linux_def  += openrtx_def
+linux_def  += openrtx_def + dstar_def
 linux_def  += {'sniprintf':'snprintf', 'vsniprintf':'vsnprintf'}
 
 #
@@ -433,9 +452,9 @@ md3x0_src = ['platform/drivers/CPS/cps_io_native_MD3x0.c',
 md3x0_inc = ['platform/targets/MD-3x0']
 md3x0_def = {'PLATFORM_MD3x0': '', 'timegm': 'mktime'}
 
-md3x0_src += openrtx_src + stm32f405_src + ui_src_default + mdx_src
+md3x0_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default + mdx_src
 md3x0_inc += openrtx_inc + stm32f405_inc
-md3x0_def += openrtx_def + stm32f405_def
+md3x0_def += openrtx_def + stm32f405_def + dstar_def
 
 ##
 ## TYT MD-UV380
@@ -457,9 +476,9 @@ mduv3x0_src = ['platform/drivers/CPS/cps_io_native_MDUV3x0.c',
 mduv3x0_inc = ['platform/targets/MD-UV3x0']
 mduv3x0_def =  {'PLATFORM_MDUV3x0': '', 'timegm': 'mktime'}
 
-mduv3x0_src += openrtx_src + stm32f405_src + ui_src_default + mdx_src
+mduv3x0_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default + mdx_src
 mduv3x0_inc += openrtx_inc + stm32f405_inc
-mduv3x0_def += openrtx_def + stm32f405_def
+mduv3x0_def += openrtx_def + stm32f405_def + dstar_def
 
 ##
 ## TYT MD-9600
@@ -522,9 +541,9 @@ mod17_src = ['platform/targets/Module17/platform.c',
 mod17_inc = ['platform/targets/Module17']
 mod17_def = {'PLATFORM_MOD17': ''}
 
-mod17_src += openrtx_src + stm32f405_src + ui_src_module17
+mod17_src += openrtx_src + dstar_src + stm32f405_src + ui_src_module17
 mod17_inc += openrtx_inc + stm32f405_inc
-mod17_def += openrtx_def + stm32f405_def
+mod17_def += openrtx_def + stm32f405_def + dstar_def
 
 ##
 ## Connect Systems CS70000
@@ -555,9 +574,9 @@ cs7000_src = ['platform/drivers/NVM/nvmem_CS7000.c',
 cs7000_inc = ['platform/targets/CS7000']
 cs7000_def = {'PLATFORM_CS7000': '', 'timegm': 'mktime'}
 
-cs7000_src += openrtx_src + stm32f405_src + ui_src_default
+cs7000_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default
 cs7000_inc += openrtx_inc + stm32f405_inc
-cs7000_def += openrtx_def + stm32f405_def
+cs7000_def += openrtx_def + stm32f405_def + dstar_def
 
 ##
 ## Connect Systems CS70000-PLUS
@@ -586,9 +605,9 @@ cs7000p_src = ['platform/drivers/NVM/nvmem_CS7000.c',
 cs7000p_inc = ['platform/targets/CS7000-PLUS']
 cs7000p_def = {'PLATFORM_CS7000P': '', 'timegm': 'mktime'}
 
-cs7000p_src += openrtx_src + stm32h743_src + miosix_cm7_src + ui_src_default
+cs7000p_src += openrtx_src + dstar_src + stm32h743_src + miosix_cm7_src + ui_src_default
 cs7000p_inc += openrtx_inc + stm32h743_inc + miosix_cm7_inc
-cs7000p_def += openrtx_def + stm32h743_def + miosix_cm7_def
+cs7000p_def += openrtx_def + stm32h743_def + miosix_cm7_def + dstar_def
 
 ##
 ## Baofeng DM-1701
@@ -608,9 +627,9 @@ dm1701_src = ['platform/targets/DM-1701/platform.c',
 dm1701_inc = ['platform/targets/DM-1701']
 dm1701_def = {'PLATFORM_DM1701': '', 'timegm': 'mktime'}
 
-dm1701_src += openrtx_src + stm32f405_src + ui_src_default + mdx_src
+dm1701_src += openrtx_src + dstar_src + stm32f405_src + ui_src_default + mdx_src
 dm1701_inc += openrtx_inc + stm32f405_inc
-dm1701_def += openrtx_def + stm32f405_def
+dm1701_def += openrtx_def + stm32f405_def + dstar_def
 
 ##
 ## Radtel RT-4D
@@ -769,7 +788,7 @@ endforeach
 linux_opts = {
   'sources'            : linux_default_src,
   'include_directories': linux_inc,
-  'dependencies'       : [sdl_dep, threads_dep, codec2_dep],
+  'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + dstar_dep,
   'c_args'             : linux_c_args,
   'cpp_args'           : linux_cpp_args,
   'link_args'          : linux_l_args
@@ -778,7 +797,7 @@ linux_opts = {
 linux_small_opts = {
     'sources'            : linux_default_src,
     'include_directories': linux_inc,
-    'dependencies'       : [sdl_dep, threads_dep, codec2_dep],
+    'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + dstar_dep,
     'c_args'             : linux_small_c_args,
     'cpp_args'           : linux_small_cpp_args,
     'link_args'          : linux_l_args
@@ -787,7 +806,7 @@ linux_small_opts = {
 linux_mod17_opts = {
     'sources'            : linux_mod17_src,
     'include_directories': linux_inc,
-    'dependencies'       : [sdl_dep, threads_dep, codec2_dep],
+    'dependencies'       : [sdl_dep, threads_dep, codec2_dep] + dstar_dep,
     'c_args'             : linux_mod17_c_args,
     'cpp_args'           : linux_mod17_cpp_args,
     'link_args'          : linux_l_args
@@ -796,7 +815,7 @@ linux_mod17_opts = {
 md3x0_opts = {
   'sources'            : md3x0_src,
   'include_directories': md3x0_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : md3x0_args,
   'cpp_args'           : md3x0_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -805,7 +824,7 @@ md3x0_opts = {
 mduv3x0_opts = {
   'sources'            : mduv3x0_src,
   'include_directories': mduv3x0_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : mduv3x0_args,
   'cpp_args'           : mduv3x0_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -841,7 +860,7 @@ md9600_opts = {
 mod17_opts = {
   'sources'            : mod17_src,
   'include_directories': mod17_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : mod17_args,
   'cpp_args'           : mod17_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/stm32_1m+192k_rom.ld']
@@ -866,10 +885,19 @@ ttwrplus_opts = {
   'link_args'          : [],
 }
 
+c62_opts = {
+  'sources'            : ['CMakeLists.txt'],
+  'include_directories': [],
+  'dependencies'       : [codec2_dep] + dstar_dep,
+  'c_args'             : [],
+  'cpp_args'           : [],
+  'link_args'          : [],
+}
+
 cs7000_opts = {
   'sources'            : cs7000_src,
   'include_directories': cs7000_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : cs7000_args,
   'cpp_args'           : cs7000_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/stm32_1m+192k_rom.ld']
@@ -878,7 +906,7 @@ cs7000_opts = {
 cs7000p_opts = {
   'sources'            : cs7000p_src,
   'include_directories': cs7000p_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : cs7000p_args,
   'cpp_args'           : cs7000p_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32H7xx/linker_script_cs7000p.ld',
@@ -888,7 +916,7 @@ cs7000p_opts = {
 dm1701_opts = {
   'sources'            : dm1701_src,
   'include_directories': dm1701_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : dm1701_args,
   'cpp_args'           : dm1701_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -982,6 +1010,13 @@ targets = [
     'cpu'      : 'lx7'
   },
   {
+    'name'     : 'c62',
+    'opts'     : c62_opts,
+    'flashable': true,
+    'wrap'     : ' ',
+    'load_addr': ' '
+  },
+  {
     'name'     : 'cs7000',
     'opts'     : cs7000_opts,
     'flashable': true,
@@ -1046,6 +1081,12 @@ foreach t : targets
                               build_by_default : true)
       endif
 
+      deps = custom_target(name+'_deps',
+                          output  : name+'_deps.stamp',
+                          capture : true,
+                          command : [west,
+                                    'update',
+                                    '--group-filter', '+esp32'])
 
       bin = custom_target(name,
                           input   : txt,
@@ -1070,6 +1111,25 @@ foreach t : targets
                     output  : name+'_flash',
                     command : [uf2conv, '-D', '@INPUT@'])
 
+  # C62 is a Zephyr target, we compile it using west and package it in uf2 format
+  elif name == 'openrtx_c62'
+      c62_modules = custom_target('c62_west_update',
+                                  output  : 'c62_west_update.stamp',
+                                  command : ['sh', '-c', 'west update --group-filter +csk6 && touch @OUTPUT@'])
+
+      # Build options go to the C62 CMakeLists.txt
+      c62_cmake_args = []
+      if get_option('dstar')
+        c62_cmake_args += ['--', '-DC62_DSTAR=ON']
+      endif
+
+      bin = custom_target(name,
+                          input   : [txt, c62_modules],
+                          output  : name+'_bin',
+                          command : [west,
+                                    'build',
+                                    '-b', 'c62',
+                                    '-d', '.', '..'] + c62_cmake_args)
   else
 
     target_opts = t['opts']
@@ -1177,7 +1237,7 @@ linux = alias_target('linux', linux_targets)
 unit_test_opts = {'c_args'             : linux_c_args,
                   'cpp_args'           : linux_cpp_args,
                   'include_directories': linux_inc,
-                  'dependencies'       : [sdl_dep, threads_dep, codec2_dep, catch2_dep],
+                  'dependencies'       : [sdl_dep, threads_dep, codec2_dep, catch2_dep] + dstar_dep,
                   'link_args'          : linux_l_args}
 
 unit_test_src = linux_src + ui_src_default
@@ -1230,6 +1290,11 @@ m17_packet_test = executable('m17_packet_test',
                               sources : unit_test_src + ['tests/unit/M17_packet.cpp'],
                               kwargs  : unit_test_opts)
 
+c62_calib_test = executable('c62_calib_test',
+                            sources : ['tests/unit/C62_calib.cpp',
+                                       'platform/targets/c62/calib_C62.c'],
+                            kwargs  : unit_test_opts)
+
 dsp_oversampling_test = executable('dsp_oversampling_test',
                                     sources : unit_test_src + ['tests/unit/dsp_oversampling.cpp'],
                                     kwargs  : unit_test_opts)
@@ -1249,6 +1314,10 @@ slevel_test = executable('slevel_test',
 audio_codec_test = executable('audio_codec_test',
                               sources : unit_test_src + ['tests/unit/audio_codec.cpp'],
                               kwargs  : unit_test_opts)
+
+dsp_voice_band_test = executable('dsp_voice_band_test',
+                                  sources : unit_test_src + ['tests/unit/dsp_voice_band.cpp'],
+                                  kwargs  : unit_test_opts)
 
 # Baseband replay (tests/platform/M17Replay.hpp): a command line tool and a
 # unit test replaying a committed recording through the same class. The test
@@ -1282,9 +1351,28 @@ test('Codeplug Test',         cps_test)
 test('minmea conversion Test', minmea_conversion_test)
 test('UI Check Standby Test', ui_check_standby_test)
 test('M17 Packet Frame Test', m17_packet_test)
+test('C62 Calibration Test', c62_calib_test)
 test('DSP Oversampling Test', dsp_oversampling_test)
 test('DSP DC Block Test',    dsp_dcblock_test)
 test('GFX Text Test',        gfx_text_test)
 test('S-Level Test', slevel_test)
 test('Audio Codec Test',     audio_codec_test)
 test('M17 Baseband Replay Test', m17_replay_test, timeout : 120) # ~40 s in CI with coverage
+test('DSP Voice Band Test', dsp_voice_band_test)
+
+# D-STAR tests, only when D-STAR support is enabled
+if get_option('dstar')
+  dstar_vocoder_test = executable('dstar_vocoder_test',
+                                  sources : unit_test_src + ['tests/unit/dstar_vocoder.cpp'],
+                                  kwargs  : unit_test_opts)
+  dstar_protocol_test = executable('dstar_protocol_test',
+                                   sources : unit_test_src + ['tests/unit/dstar_protocol.cpp'],
+                                   kwargs  : unit_test_opts)
+  dstar_modem_test = executable('dstar_modem_test',
+                                sources : unit_test_src + ['tests/unit/dstar_modem.cpp'],
+                                kwargs  : unit_test_opts)
+
+  test('D-STAR Vocoder Test',  dstar_vocoder_test)
+  test('D-STAR Protocol Test', dstar_protocol_test)
+  test('D-STAR Modem Test',    dstar_modem_test)
+endif

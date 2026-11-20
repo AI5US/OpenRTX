@@ -68,6 +68,7 @@ subprojects/codec2
 subprojects/tinyusb
 subprojects/XPowersLib
 subprojects/catch2
+subprojects/mbelib-fx
 
 # ignore log files
 *.log
