@@ -49,6 +49,39 @@ target_include_directories(app
 
 target_compile_definitions(app PRIVATE PLATFORM_C62)
 
+# C62_DSTAR: D-STAR support, with the fixed-point AMBE vocoder of mbelib-fx,
+#   which west fetches to modules/lib/mbelib-fx. The meson option 'dstar'
+#   turns it on.
+option(C62_DSTAR "D-STAR support" OFF)
+
+if(C62_DSTAR)
+  set(C62_MBEFX ${WEST_TOPDIR}/modules/lib/mbelib-fx)
+  if(NOT EXISTS ${C62_MBEFX}/include/mbefx/mbefx.h)
+    message(FATAL_ERROR "mbelib-fx not found in ${WEST_TOPDIR}/modules/lib: "
+                        "run 'west update --group-filter +csk6', or build "
+                        "with -DC62_DSTAR=OFF")
+  endif()
+
+  # The AMBE vocoder only, built with the Zephyr compiler flags
+  set(MBEFX_AMBE ON)
+  set(MBEFX_IMBE OFF)
+  add_subdirectory(${C62_MBEFX} ${CMAKE_BINARY_DIR}/mbelib-fx)
+  target_link_libraries(mbefx PRIVATE zephyr_interface)
+  target_link_libraries(app PRIVATE mbefx)
+
+  target_sources(app PRIVATE
+    ${OPENRTX_ROOT}/openrtx/src/core/dstar_vocoder.c
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/Header.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/HeaderCoder.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/SlowData.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/Modulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/protocols/DSTAR/Demodulator.cpp
+    ${OPENRTX_ROOT}/openrtx/src/rtx/OpMode_DSTAR.cpp)
+  target_compile_definitions(app PRIVATE CONFIG_DSTAR)
+endif()
+
+message(STATUS "C62: D-STAR ${C62_DSTAR}")
+
 #
 # DSP firmware, flashed separately at 0x100000 (dsp_firmware partition). The
 # firmware does not boot without it, and it must match the audio code, so the
