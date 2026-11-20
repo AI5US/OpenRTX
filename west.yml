@@ -21,6 +21,9 @@ manifest:
     - name: zephyr
       url-base: https://github.com/zephyrproject-rtos
 
+    - name: ai5us
+      url-base: https://github.com/AI5US
+
   projects:
     # Zephyr mainline modules
     - name: zephyr
@@ -105,5 +108,13 @@ manifest:
       remote: openrtx
       revision: openrtx-c62
       path: modules/lib/urpc
+      groups:
+        - csk6
+
+    # Fixed-point AMBE vocoder, for the C62 D-STAR support (C62_DSTAR)
+    - name: mbelib-fx
+      remote: ai5us
+      revision: 1fcf34e53b947b185d504f8777eaa2973046889c
+      path: modules/lib/mbelib-fx
       groups:
         - csk6

@@ -888,7 +888,7 @@ ttwrplus_opts = {
 c62_opts = {
   'sources'            : ['CMakeLists.txt'],
   'include_directories': [],
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep] + dstar_dep,
   'c_args'             : [],
   'cpp_args'           : [],
   'link_args'          : [],
@@ -1117,13 +1117,19 @@ foreach t : targets
                                   output  : 'c62_west_update.stamp',
                                   command : ['sh', '-c', 'west update --group-filter +csk6 && touch @OUTPUT@'])
 
+      # Build options go to the C62 CMakeLists.txt
+      c62_cmake_args = []
+      if get_option('dstar')
+        c62_cmake_args += ['--', '-DC62_DSTAR=ON']
+      endif
+
       bin = custom_target(name,
                           input   : [txt, c62_modules],
                           output  : name+'_bin',
                           command : [west,
                                     'build',
                                     '-b', 'c62',
-                                    '-d', '.', '..'])
+                                    '-d', '.', '..'] + c62_cmake_args)
   else
 
     target_opts = t['opts']
