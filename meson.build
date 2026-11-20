@@ -1293,10 +1293,6 @@ dsp_oversampling_test = executable('dsp_oversampling_test',
                                     sources : unit_test_src + ['tests/unit/dsp_oversampling.cpp'],
                                     kwargs  : unit_test_opts)
 
-dsp_voice_band_test = executable('dsp_voice_band_test',
-                                  sources : unit_test_src + ['tests/unit/dsp_voice_band.cpp'],
-                                  kwargs  : unit_test_opts)
-
 gfx_text_test = executable('gfx_text_test',
                             sources : unit_test_src + ['tests/unit/gfx_text.cpp'],
                             kwargs  : unit_test_opts)
@@ -1304,6 +1300,10 @@ gfx_text_test = executable('gfx_text_test',
 audio_codec_test = executable('audio_codec_test',
                               sources : unit_test_src + ['tests/unit/audio_codec.cpp'],
                               kwargs  : unit_test_opts)
+
+dsp_voice_band_test = executable('dsp_voice_band_test',
+                                  sources : unit_test_src + ['tests/unit/dsp_voice_band.cpp'],
+                                  kwargs  : unit_test_opts)
 
 # Baseband replay (tests/platform/M17Replay.hpp): a command line tool and a
 # unit test replaying a committed recording through the same class. The test
@@ -1342,6 +1342,7 @@ test('DSP Oversampling Test', dsp_oversampling_test)
 test('GFX Text Test',        gfx_text_test)
 test('Audio Codec Test',     audio_codec_test)
 test('M17 Baseband Replay Test', m17_replay_test, timeout : 120) # ~40 s in CI with coverage
+test('DSP Voice Band Test', dsp_voice_band_test)
 
 # D-STAR tests, only when D-STAR support is enabled
 if get_option('dstar')
