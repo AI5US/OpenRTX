@@ -224,6 +224,8 @@ void radio_setOpmode(const enum opmode mode)
             C6000.setInputGain(+3);     // Input gain in dB, as per TYT firmware
             break;
 
+        case OPMODE_DSTAR:
+
         case OPMODE_M17:
             C6000.fmMode();             // HR_C5000 in FM mode
             C6000.setInputGain(+9);     // Input gain in dB, found experimentally
@@ -339,6 +341,8 @@ void radio_enableTx()
             C6000.startAnalogTx(TxAudioSource::MIC, cfg | FmConfig::PREEMPH_EN);
         }
             break;
+
+        case OPMODE_DSTAR:
 
         case OPMODE_M17:
             C6000.disableTones();

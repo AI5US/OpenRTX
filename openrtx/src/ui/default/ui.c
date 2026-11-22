@@ -98,6 +98,9 @@ extern void _ui_drawSettingsTimeDateSet(ui_state_t* ui_state);
 #endif
 extern void _ui_drawSettingsDisplay(ui_state_t* ui_state);
 extern void _ui_drawSettingsM17(ui_state_t* ui_state);
+#ifdef CONFIG_DSTAR
+extern void _ui_drawSettingsDStar(ui_state_t *ui_state);
+#endif
 extern void _ui_drawSettingsFM(ui_state_t* ui_state);
 extern void _ui_drawSettingsVoicePrompts(ui_state_t* ui_state);
 extern void _ui_drawSettingsReset2Defaults(ui_state_t* ui_state);
@@ -130,6 +133,9 @@ const char *settings_items[] =
     "Radio",
 #ifdef CONFIG_M17
     "M17",
+#endif
+#ifdef CONFIG_DSTAR
+    "D-STAR",
 #endif
     "FM",
     "Accessibility",
@@ -173,6 +179,17 @@ const char * settings_m17_items[] =
     "CAN",
     "CAN RX Check"
 };
+
+#ifdef CONFIG_DSTAR
+const char *settings_dstar_items[] =
+{
+    "Callsign",
+    "UR",
+    "RPT1",
+    "RPT2",
+    "Message"
+};
+#endif
 
 const char* settings_fm_items[] =
 {
@@ -263,6 +280,9 @@ const uint8_t settings_gps_num = sizeof(settings_gps_items)/sizeof(settings_gps_
 const uint8_t settings_radio_num = sizeof(settings_radio_items)/sizeof(settings_radio_items[0]);
 #ifdef CONFIG_M17
 const uint8_t settings_m17_num = sizeof(settings_m17_items)/sizeof(settings_m17_items[0]);
+#endif
+#ifdef CONFIG_DSTAR
+const uint8_t settings_dstar_num = sizeof(settings_dstar_items)/sizeof(settings_dstar_items[0]);
 #endif
 const uint8_t settings_fm_num = sizeof(settings_fm_items) / sizeof(settings_fm_items[0]);
 const uint8_t settings_accessibility_num = sizeof(settings_accessibility_items)/sizeof(settings_accessibility_items[0]);
@@ -992,12 +1012,14 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
             }
             break;
         case 5:
-            // Cycle through radio modes
+            // Cycle through radio modes: FM, M17, D-STAR
             #ifdef CONFIG_M17
             if(state.channel.mode == OPMODE_FM)
                 state.channel.mode = OPMODE_M17;
+            #ifdef CONFIG_DSTAR
             else if(state.channel.mode == OPMODE_M17)
-                state.channel.mode = OPMODE_FM;
+                state.channel.mode = OPMODE_DSTAR;
+            #endif
             else //catch any invalid states so they don't get locked out
             #endif
                 state.channel.mode = OPMODE_FM;
@@ -1202,6 +1224,37 @@ static void _ui_textInputDel(char *buf)
         ui_state.last_keypress = 0;
     ui_state.input_set = 0;
 }
+
+#ifdef CONFIG_DSTAR
+/**
+ * \internal Get the setting edited by a D-STAR settings menu entry.
+ *
+ * @param item: menu entry, see enum settingsDStarItems.
+ * @param maxLen: filled with the maximum length of the setting, in characters.
+ * @return the setting string, of maxLen + 1 bytes.
+ */
+static char *_ui_dstarSetting(uint8_t item, size_t *maxLen)
+{
+    switch (item) {
+        case DSTAR_MY:
+            // The radio callsign, shared with M17: D-STAR sends 8 characters
+            *maxLen = 8;
+            return state.settings.callsign;
+        case DSTAR_UR:
+            *maxLen = 8;
+            return state.settings.dstar_ur;
+        case DSTAR_RPT1:
+            *maxLen = 8;
+            return state.settings.dstar_rpt1;
+        case DSTAR_RPT2:
+            *maxLen = 8;
+            return state.settings.dstar_rpt2;
+        default:
+            *maxLen = 20;
+            return state.settings.dstar_message;
+    }
+}
+#endif
 
 static void _ui_numberInputKeypad(uint32_t *num, kbd_msg_t msg)
 {
@@ -1532,6 +1585,34 @@ void ui_updateFSM(bool *sync_rtx)
                         break;
                     }
                     #endif
+                    #ifdef CONFIG_DSTAR
+                    if(state.channel.mode == OPMODE_DSTAR)
+                    {
+                        if(msg.keys & KEY_ENTER)
+                        {
+                            // Save the companion (UR) callsign
+                            _ui_textInputConfirm(ui_state.new_callsign);
+                            strncpy(state.settings.dstar_ur,
+                                    ui_state.new_callsign, 8);
+                            state.settings.dstar_ur[8] = '\0';
+                            ui_state.edit_mode = false;
+                        }
+                        else if(msg.keys & KEY_HASH)
+                        {
+                            // Back to calling everyone
+                            strcpy(state.settings.dstar_ur, "CQCQCQ");
+                            ui_state.edit_mode = false;
+                        }
+                        else if(msg.keys & KEY_ESC)
+                            ui_state.edit_mode = false;
+                        else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                                msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                            _ui_textInputDel(ui_state.new_callsign);
+                        else if(input_isCharPressed(msg))
+                            _ui_textInputKeypad(ui_state.new_callsign, 8, msg, true);
+                        break;
+                    }
+                    #endif
                 }
                 else
                 {
@@ -1572,6 +1653,16 @@ void ui_updateFSM(bool *sync_rtx)
                                     sizeof(ui_state.new_callsign));
                             vp_announceM17Info(NULL,  ui_state.edit_mode,
                                                queueFlags);
+                        }
+                        else
+                        #endif
+                        #ifdef CONFIG_DSTAR
+                        if(state.channel.mode == OPMODE_DSTAR)
+                        {
+                            // Enable companion (UR) callsign input
+                            ui_state.edit_mode = true;
+                            _ui_textInputReset(ui_state.new_callsign,
+                                    sizeof(ui_state.new_callsign));
                         }
                         else
                         #endif
@@ -1968,6 +2059,11 @@ void ui_updateFSM(bool *sync_rtx)
 #ifdef CONFIG_M17
                         case S_M17:
                             state.ui_screen = SETTINGS_M17;
+                            break;
+#endif
+#ifdef CONFIG_DSTAR
+                        case S_DSTAR:
+                            state.ui_screen = SETTINGS_DSTAR;
                             break;
 #endif
                         case S_FM:
@@ -2450,6 +2546,65 @@ void ui_updateFSM(bool *sync_rtx)
                 }
                 break;
 #endif
+#ifdef CONFIG_DSTAR
+            case SETTINGS_DSTAR:
+            {
+                size_t maxLen;
+                char *field = _ui_dstarSetting(ui_state.menu_selected, &maxLen);
+
+                if(ui_state.edit_mode)
+                {
+                    if(msg.keys & KEY_ENTER)
+                    {
+                        // Save the new value and disable input mode
+                        _ui_textInputConfirm(ui_state.new_meta_text);
+                        strncpy(field, ui_state.new_meta_text, maxLen);
+                        field[maxLen] = '\0';
+                        ui_state.edit_meta_text = false;
+                        ui_state.edit_mode = false;
+                    }
+                    else if(msg.keys & KEY_ESC)
+                    {
+                        // Discard the new value and disable input mode
+                        ui_state.edit_meta_text = false;
+                        ui_state.edit_mode = false;
+                    }
+                    else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                            msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                    {
+                        _ui_textInputDel(ui_state.new_meta_text);
+                    }
+                    else if(input_isCharPressed(msg))
+                    {
+                        // Callsigns in upper case, the space before a module
+                        // letter is on key 0; the message is free text.
+                        _ui_textInputKeypad(ui_state.new_meta_text, maxLen,
+                                            msg, ui_state.menu_selected
+                                                     != DSTAR_MESSAGE);
+                    }
+                }
+                else
+                {
+                    if(msg.keys & KEY_ENTER)
+                    {
+                        ui_state.edit_mode = true;
+                        ui_state.edit_meta_text = true;
+                        _ui_textInputReset(ui_state.new_meta_text,
+                                           sizeof(ui_state.new_meta_text));
+                    }
+                    else if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                        _ui_menuUp(settings_dstar_num);
+                    else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                        _ui_menuDown(settings_dstar_num);
+                    else if(msg.keys & KEY_ESC)
+                    {
+                        *sync_rtx = true;
+                        _ui_menuBack(MENU_SETTINGS);
+                    }
+                }
+            }
+                break;
+#endif
             case SETTINGS_FM:
                 if (ui_state.edit_mode)
                 {
@@ -2733,6 +2888,12 @@ bool ui_updateGUI()
         // M17 settings screen
         case SETTINGS_M17:
             _ui_drawSettingsM17(&ui_state);
+            break;
+#endif
+#ifdef CONFIG_DSTAR
+        // D-STAR settings screen
+        case SETTINGS_DSTAR:
+            _ui_drawSettingsDStar(&ui_state);
             break;
 #endif
         // FM settings screen

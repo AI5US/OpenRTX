@@ -21,10 +21,19 @@
 #include "core/dsp.h"
 #include "core/utils.h"
 #include "hwconfig.h"
+#ifdef CONFIG_DSTAR
+#include "core/dstar_vocoder.h"
+#endif
 
 #define BUF_SIZE 4
 #define CODEC2_FRAME_SAMPLES 160 /* Samples per codec2 3200-mode frame */
 #define DMA_BUF_SAMPLES (CODEC2_FRAME_SAMPLES * 2) /* Double-buffered DMA */
+
+#ifdef CONFIG_DSTAR
+#define MAX_FRAME_SIZE DSTAR_VOCODER_FRAME_BYTES
+#else
+#define MAX_FRAME_SIZE 8
+#endif
 
 #ifndef CONFIG_MIC_GAIN
 #define CONFIG_MIC_GAIN 1
@@ -49,11 +58,14 @@ static pthread_cond_t wakeup_cond = PTHREAD_COND_INITIALIZER;
 static uint8_t readPos;
 static uint8_t writePos;
 static uint8_t numElements;
-static uint64_t dataBuffer[BUF_SIZE];
+static uint8_t dataBuffer[BUF_SIZE][MAX_FRAME_SIZE];
+static enum codecType curCodec;
+static size_t frameSize;
 
 static void *encodeFunc(void *arg);
 static void *decodeFunc(void *arg);
-static bool startThread(const pathId path, void *(*func)(void *));
+static bool startThread(const pathId path, const enum codecType type,
+                        void *(*func)(void *));
 static void stopThread();
 
 void codec_init()
@@ -86,12 +98,22 @@ void codec_terminate()
 
 bool codec_startEncode(const pathId path)
 {
-    return startThread(path, encodeFunc);
+    return startThread(path, CODEC_CODEC2_3200, encodeFunc);
 }
 
 bool codec_startDecode(const pathId path)
 {
-    return startThread(path, decodeFunc);
+    return startThread(path, CODEC_CODEC2_3200, decodeFunc);
+}
+
+bool codec_startEncodeType(const pathId path, const enum codecType type)
+{
+    return startThread(path, type, encodeFunc);
+}
+
+bool codec_startDecodeType(const pathId path, const enum codecType type)
+{
+    return startThread(path, type, decodeFunc);
 }
 
 void codec_stop(const pathId path)
@@ -123,7 +145,7 @@ int codec_popFrame(uint8_t *frame, const bool blocking)
     if (running == false)
         return -EPERM;
 
-    uint64_t element;
+    uint8_t element[MAX_FRAME_SIZE];
 
     // No data available and non-blocking call: just return false.
     if ((numElements == 0) && (blocking == false))
@@ -135,14 +157,14 @@ int codec_popFrame(uint8_t *frame, const bool blocking)
         pthread_cond_wait(&wakeup_cond, &data_mutex);
     }
 
-    element = dataBuffer[readPos];
+    memcpy(element, dataBuffer[readPos], frameSize);
     readPos = (readPos + 1) % BUF_SIZE;
     numElements -= 1;
     pthread_mutex_unlock(&data_mutex);
 
     // Do memcpy after mutex unlock to reduce execution time spent inside the
     // critical section
-    memcpy(frame, &element, 8);
+    memcpy(frame, element, frameSize);
 
     return 0;
 }
@@ -154,8 +176,8 @@ int codec_pushFrame(const uint8_t *frame, const bool blocking)
 
     // Copy data to a temporary variable before mutex lock to reduce execution
     // time spent inside the critical section
-    uint64_t element;
-    memcpy(&element, frame, 8);
+    uint8_t element[MAX_FRAME_SIZE];
+    memcpy(element, frame, frameSize);
 
     // No space available and non-blocking call: return
     if ((numElements >= BUF_SIZE) && (blocking == false))
@@ -168,7 +190,7 @@ int codec_pushFrame(const uint8_t *frame, const bool blocking)
     }
 
     // There is free space, push data into the queue
-    dataBuffer[writePos] = element;
+    memcpy(dataBuffer[writePos], element, frameSize);
     writePos = (writePos + 1) % BUF_SIZE;
     numElements += 1;
 
@@ -180,8 +202,12 @@ static void *encodeFunc(void *arg)
 {
     streamId iStream;
     pathId iPath = *((pathId *)arg);
-    struct CODEC2 *codec2;
+    struct CODEC2 *codec2 = NULL;
+#ifdef CONFIG_DSTAR
+    dstarEncoder_t *dstar = NULL;
+#endif
     struct dcBlock dcBlock;
+    struct voiceBand voiceBand;
     struct decimatorState decimator;
 
     // Allocate on the heap, as the stack isn't big enough for oversampling
@@ -199,8 +225,18 @@ static void *encodeFunc(void *arg)
         goto exit;
 
     dsp_resetState(dcBlock);
+    dsp_resetState(voiceBand);
     dsp_resetState(decimator);
-    codec2 = codec2_create(CODEC2_MODE_3200);
+
+    // Codec2 renders little of the upper band by itself, the AMBE codecs
+    // all of it: band-limit their input as radios do
+    bool bandLimit = (curCodec != CODEC_CODEC2_3200);
+#ifdef CONFIG_DSTAR
+    if (curCodec == CODEC_DSTAR_AMBE)
+        dstar = dstarEncoder_create();
+    else
+#endif
+        codec2 = codec2_create(CODEC2_MODE_3200);
 
     while (reqStop == false) {
         // Invalid audio path, quit
@@ -225,15 +261,21 @@ static void *encodeFunc(void *arg)
 #endif
 
             sample = dsp_dcBlockFilter(&dcBlock, sample);
+            if (bandLimit)
+                sample = dsp_voiceBandFilter(&voiceBand, sample);
             audio.data[outIdx++] = s16_mulSat(sample, CONFIG_MIC_GAIN);
         }
 
-        // CODEC2 encodes 160 speech samples (20 ms), into 8 bytes: here we
-        // write the new encoded data into a buffer of 16 bytes, writing the
-        // first half and then the second one, sequentially.
-        // Data ready flag is rised once all the 16 bytes contain new data.
-        uint64_t frame = 0;
-        codec2_encode(codec2, ((uint8_t *)&frame), audio.data);
+        // Encode 160 speech samples (20 ms) into a frame: 8 bytes for CODEC2,
+        // 9 bytes for D-STAR AMBE.
+        uint8_t frame[MAX_FRAME_SIZE] = { 0 };
+#ifdef CONFIG_DSTAR
+        if (dstar != NULL)
+            dstarEncoder_encode(dstar, audio.data, frame);
+        else
+#endif
+            if (codec2 != NULL)
+            codec2_encode(codec2, frame, audio.data);
 
         pthread_mutex_lock(&data_mutex);
 
@@ -242,7 +284,7 @@ static void *encodeFunc(void *arg)
             readPos = (readPos + 1) % BUF_SIZE;
         }
 
-        dataBuffer[writePos] = frame;
+        memcpy(dataBuffer[writePos], frame, frameSize);
         writePos = (writePos + 1) % BUF_SIZE;
 
         if (numElements == 0)
@@ -255,7 +297,11 @@ static void *encodeFunc(void *arg)
     }
 
     audioStream_terminate(iStream);
-    codec2_destroy(codec2);
+    if (codec2 != NULL)
+        codec2_destroy(codec2);
+#ifdef CONFIG_DSTAR
+    dstarEncoder_destroy(dstar);
+#endif
 
 exit:
     free(adcBuf);
@@ -274,7 +320,10 @@ static void *decodeFunc(void *arg)
     streamId oStream;
     pathId oPath = *((pathId *)arg);
     int16_t audioBuf[DMA_BUF_SAMPLES];
-    struct CODEC2 *codec2;
+    struct CODEC2 *codec2 = NULL;
+#ifdef CONFIG_DSTAR
+    dstarDecoder_t *dstar = NULL;
+#endif
 
     // Open output stream
     memset(audioBuf, 0x00, DMA_BUF_SAMPLES * sizeof(stream_sample_t));
@@ -286,7 +335,12 @@ static void *decodeFunc(void *arg)
         return NULL;
     }
 
-    codec2 = codec2_create(CODEC2_MODE_3200);
+#ifdef CONFIG_DSTAR
+    if (curCodec == CODEC_DSTAR_AMBE)
+        dstar = dstarDecoder_create();
+    else
+#endif
+        codec2 = codec2_create(CODEC2_MODE_3200);
 
     // Ensure that thread start is correctly synchronized with the output
     // stream to avoid having the decode function writing in a memory area
@@ -300,13 +354,13 @@ static void *decodeFunc(void *arg)
             break;
 
         // Try popping data from the queue
-        uint64_t frame = 0;
+        uint8_t frame[MAX_FRAME_SIZE];
         bool newData = false;
 
         pthread_mutex_lock(&data_mutex);
 
         if (numElements != 0) {
-            frame = dataBuffer[readPos];
+            memcpy(frame, dataBuffer[readPos], frameSize);
             readPos = (readPos + 1) % BUF_SIZE;
             if (numElements >= BUF_SIZE)
                 pthread_cond_signal(&wakeup_cond);
@@ -322,7 +376,15 @@ static void *decodeFunc(void *arg)
             break;
 
         if (newData) {
-            codec2_decode(codec2, audioBuf, ((uint8_t *)&frame));
+#ifdef CONFIG_DSTAR
+            if (dstar != NULL)
+                dstarDecoder_decode(dstar, frame, audioBuf);
+            else
+#endif
+                if (codec2 != NULL)
+                codec2_decode(codec2, audioBuf, frame);
+            else
+                memset(audioBuf, 0x00, CODEC2_FRAME_SAMPLES * sizeof(int16_t));
 
 #ifdef PLATFORM_MD3x0
             // Bump up volume a little bit, as on MD3x0 is quite low
@@ -339,7 +401,11 @@ static void *decodeFunc(void *arg)
 
     // Stop stream and wait until its effective termination
     audioStream_stop(oStream);
-    codec2_destroy(codec2);
+    if (codec2 != NULL)
+        codec2_destroy(codec2);
+#ifdef CONFIG_DSTAR
+    dstarDecoder_destroy(dstar);
+#endif
 
     // In case thread terminates due to invalid path or stream error, detach it
     // to ensure that its memory gets freed by the OS.
@@ -350,7 +416,8 @@ static void *decodeFunc(void *arg)
     return NULL;
 }
 
-static bool startThread(const pathId path, void *(*func)(void *))
+static bool startThread(const pathId path, const enum codecType type,
+                        void *(*func)(void *))
 {
     // Bad incoming path
     if (audioPath_getStatus(path) != PATH_OPEN)
@@ -360,16 +427,21 @@ static bool startThread(const pathId path, void *(*func)(void *))
     // only one call at a time can effectively start the thread.
     pthread_mutex_lock(&init_mutex);
     if (running) {
-        // Same path as before, path open, codec already running: all good.
-        if (path == audioPath) {
+        // Same path and codec as before, path open, codec already running: all
+        // good.
+        if ((path == audioPath) && (type == curCodec)) {
             pthread_mutex_unlock(&init_mutex);
             return true;
         }
 
-        // New path takes over the current one only if it has an higher priority
-        // or the current one is closed/suspended.
+        // Same path, different codec: restart with the new one
         pathInfo_t newPath = audioPath_getInfo(path);
         pathInfo_t curPath = audioPath_getInfo(audioPath);
+        if (path == audioPath)
+            curPath.status = PATH_CLOSED;
+
+        // New path takes over the current one only if it has an higher priority
+        // or the current one is closed/suspended.
         if ((curPath.status == PATH_OPEN) && (curPath.prio >= newPath.prio)) {
             pthread_mutex_unlock(&init_mutex);
             return false;
@@ -380,6 +452,13 @@ static bool startThread(const pathId path, void *(*func)(void *))
 
     running = true;
     audioPath = path;
+    curCodec = type;
+#ifdef CONFIG_DSTAR
+    if (type == CODEC_DSTAR_AMBE)
+        frameSize = DSTAR_VOCODER_FRAME_BYTES;
+    else
+#endif
+        frameSize = 8;
     pthread_mutex_unlock(&init_mutex);
 
     readPos = 0;

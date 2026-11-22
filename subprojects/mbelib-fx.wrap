@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-FileCopyrightText: Copyright 2010 mbelib Author
+# SPDX-FileCopyrightText: Copyright 2025-2026 arancormonk
+# SPDX-FileCopyrightText: Copyright 2026 Rhizomatica
+
+[wrap-git]
+url = https://github.com/AI5US/mbelib-fx/
+revision = 1fcf34e53b947b185d504f8777eaa2973046889c
+depth = 1
+
+[provide]
+dependency_names = mbelib-fx
